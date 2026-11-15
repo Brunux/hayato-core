@@ -3841,6 +3841,18 @@ if have lazyos; then
 	else
 		fail "lazyos --glyphs missing half-block QR codepoints U+2580/U+2584 (spec 020)"
 	fi
+	if [ -n "$REPO" ] && [ -d "$REPO/rust/crates/lazyos-cli/src/system" ]; then
+		_s020_strip_missing=""
+		for _m in net bluetooth clean colour audio kill remind notify clip learn about; do
+			grep -q 'ActionStrip' "$REPO/rust/crates/lazyos-cli/src/system/$_m.rs" 2>/dev/null ||
+				_s020_strip_missing="$_s020_strip_missing $_m"
+		done
+		if [ -z "$_s020_strip_missing" ]; then
+			ok "all 11 action+list menus separate tool actions into ActionStrip (spec 020)"
+		else
+			fail "menus missing ActionStrip action/result separation (spec 020):$_s020_strip_missing"
+		fi
+	fi
 
 	# Spec 012 moved the three rofi modes onto the framework.  The bindings read
 	# `$launcher`/`$runner`/`$switcher`, so the variable is what has to say the
