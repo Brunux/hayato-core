@@ -3852,6 +3852,12 @@ if have lazyos; then
 		else
 			fail "menus missing ActionStrip action/result separation (spec 020):$_s020_strip_missing"
 		fi
+		if grep -q 'save_qr_png' "$REPO/rust/crates/lazyos-cli/src/system/qr.rs" 2>/dev/null &&
+			grep -q -- '--action=stop=Stop & Transcribe' "$REPO/rust/crates/lazyos-cli/src/system/dictate.rs" 2>/dev/null; then
+			ok "QR PNG saving and dictation push-to-talk/notification actions present (spec 020)"
+		else
+			fail "missing QR PNG saving or dictation notification actions (spec 020)"
+		fi
 	fi
 
 	# Spec 012 moved the three rofi modes onto the framework.  The bindings read
