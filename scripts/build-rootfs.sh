@@ -7,6 +7,7 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
 UI="${UI:-sway}"
+require_desktop
 [ -d "$UI_DIR" ] || die "unknown UI '$UI' (see $UIS_DIR)"
 TARGET_HOSTNAME="${TARGET_HOSTNAME:-lazyos}"
 USERNAME="${USERNAME:-brunux}"
@@ -14,7 +15,7 @@ USERPASS="${USERPASS:-debian}"
 # The one source of the version the image reports: /etc/os-release's
 # PRETTY_NAME and VERSION_ID come from this file, so a build cannot say 0.2
 # while the tag says v0.3.0.
-VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null || echo 0.0.0)"
+VERSION="$(cat "$CORE_DIR/VERSION" 2>/dev/null || echo 0.0.0)"
 
 if [ "$(id -u)" -ne 0 ]; then
 	# Forward every resolved build input: sudo does not preserve the caller's
@@ -22,6 +23,8 @@ if [ "$(id -u)" -ne 0 ]; then
 	# would otherwise be silently dropped and replaced by the default.
 	exec sudo -n \
 		BUILD_ROOT="$BUILD_ROOT" WORK_DIR="$WORK_DIR" SRC_DIR="$SRC_DIR" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		DEVICE="$DEVICE" UI="$UI" WIFI_DIR="$WIFI_DIR" \
 		LOCALE="$LOCALE" TIMEZONE="$TIMEZONE" \
 		TARGET_HOSTNAME="$TARGET_HOSTNAME" USERNAME="$USERNAME" USERPASS="$USERPASS" \
@@ -70,13 +73,22 @@ mount -t proc proc "$ROOTFS/proc"
 mount -t sysfs sys "$ROOTFS/sys"
 cp /etc/resolv.conf "$ROOTFS/etc/resolv.conf"
 
-install -Dm755 "$REPO_DIR/scripts/rootfs-setup.sh" "$ROOTFS/root/rootfs-setup.sh"
+install -Dm755 "$CORE_DIR/scripts/rootfs-setup.sh" "$ROOTFS/root/rootfs-setup.sh"
 rm -rf "$ROOTFS/tmp/packages"
 mkdir -p "$ROOTFS/tmp/packages"
 cp "$PACKAGES_DIR"/*.list "$ROOTFS/tmp/packages/"
+[ -d "$DESKTOP_REPO/packages" ] && cp "$DESKTOP_REPO"/packages/*.list "$ROOTFS/tmp/packages/" 2>/dev/null || true
 [ -f "$DEVICE_DIR/packages.list" ] && cp "$DEVICE_DIR/packages.list" "$ROOTFS/tmp/packages/device.list"
 # The UI package list is staged under the name rootfs-setup.sh expects.
 cp "$UI_DIR/packages.list" "$ROOTFS/tmp/packages/$UI.list"
+
+# Stage hardware-specific board files before the UI overlay so each layer owns its files.
+rm -rf "$ROOTFS/tmp/device-files"
+if [ -d "$DEVICE_DIR/files" ]; then
+	cp -a "$DEVICE_DIR/files" "$ROOTFS/tmp/device-files"
+	chown -R root:root "$ROOTFS/tmp/device-files"
+fi
+
 # The UI file tree is staged aside; rootfs-setup.sh decides where it goes.
 # The staged copy is normalised to root:root because `cp -a` would otherwise
 # carry the host owner (uid 10000 on postmarketOS hosts) into the image.
@@ -85,6 +97,25 @@ if [ -d "$UI_DIR/files" ]; then
 	cp -a "$UI_DIR/files" "$ROOTFS/tmp/ui-files"
 	chown -R root:root "$ROOTFS/tmp/ui-files"
 fi
+
+# Stage FHS runtime helpers (/usr/libexec/lazyos & /etc/lazyos) so the running
+# device manages boot, eMMC installation, backup, and system verification without
+# needing a checkout in ~/Dev/.
+rm -rf "$ROOTFS/tmp/lazyos-runtime" "$ROOTFS/tmp/lazyos-etc"
+mkdir -p "$ROOTFS/tmp/lazyos-runtime/boot" "$ROOTFS/tmp/lazyos-runtime/check" "$ROOTFS/tmp/lazyos-etc"
+cp "$CORE_DIR"/boot/*.sh "$ROOTFS/tmp/lazyos-runtime/boot/"
+cp "$CORE_DIR/VERSION" "$ROOTFS/tmp/lazyos-runtime/VERSION"
+for _rt in lib.sh lib-cgpt.sh lib-dist.sh install-emmc.sh install-boot.sh install-kpart.sh \
+	make-kpart.sh backup-system.sh restore-system.sh wifi.sh check-system.sh check-core.sh; do
+	[ -f "$CORE_DIR/scripts/$_rt" ] && cp "$CORE_DIR/scripts/$_rt" "$ROOTFS/tmp/lazyos-runtime/"
+done
+cp "$CORE_DIR/scripts/check-core.sh" "$ROOTFS/tmp/lazyos-runtime/check/10-core.sh"
+[ -f "$DEVICE_DIR/check-device.sh" ] && cp "$DEVICE_DIR/check-device.sh" "$ROOTFS/tmp/lazyos-runtime/check/20-device.sh"
+[ -f "$DESKTOP_REPO/scripts/check-desktop.sh" ] && cp "$DESKTOP_REPO/scripts/check-desktop.sh" "$ROOTFS/tmp/lazyos-runtime/check/30-desktop.sh"
+printf '%s\n' "$DEVICE" >"$ROOTFS/tmp/lazyos-etc/device"
+cp "$DEVICE_DIR/deviceinfo" "$ROOTFS/tmp/lazyos-etc/deviceinfo"
+[ -f "$DEVICE_DIR/kernel-cmdline.conf" ] && cp "$DEVICE_DIR/kernel-cmdline.conf" "$ROOTFS/tmp/lazyos-etc/kernel-cmdline.conf"
+chown -R root:root "$ROOTFS/tmp/lazyos-runtime" "$ROOTFS/tmp/lazyos-etc"
 # The one agent the image ships (see the Agents section of scripts/lib.sh): its
 # tarball is fetched here, verified against the committed pin, and handed to
 # rootfs-setup.sh, which extracts it into the user's ~/.opencode/bin. Cached in
@@ -101,26 +132,27 @@ if [ -f "$OPENCODE_DIR/SHA256SUMS" ]; then
 else
 	warn "no $OPENCODE_DIR/SHA256SUMS: the image gets no OpenCode"
 fi
-# The image carries this repository, because the scripts that partition the
-# internal storage, rewrite the ChromeOS kernel partition and report on the
-# system are all meant to run *on* the device (scripts/install-emmc.sh,
-# scripts/install-kpart.sh, scripts/check-system.sh).  What is staged is the
-# committed tree (git archive HEAD), so the image never carries an untested
-# working copy; rootfs-setup.sh decides its final home.
-command -v git >/dev/null || die "git is needed to stage the repository into the image"
-# This script runs as root while the repository belongs to the invoking user, so
-# git needs the checkout whitelisted (safe.directory); without it every command
-# below dies with "detected dubious ownership in repository".
-GIT="git -c safe.directory=$REPO_DIR -C $REPO_DIR"
-REPO_REVISION="$($GIT rev-parse --short HEAD)"
-if ! $GIT diff-index --quiet HEAD -- 2>/dev/null; then
-	warn "the working tree has uncommitted changes: the image gets HEAD ($REPO_REVISION), not them"
-fi
+# Stage the clean repository snapshot into ~/Dev/LazyOS for offline inspection/rebuilds.
 rm -rf "$ROOTFS/tmp/repo"
 mkdir -p "$ROOTFS/tmp/repo"
-$GIT archive HEAD | tar -x -C "$ROOTFS/tmp/repo"
-# git archive stores 0664/0775, and tar restores the stored mode verbatim when it
-# runs as root, so normalize: directories and scripts 755, everything else 644.
+_archive_git() {
+	local src="$1" dst="$2"
+	mkdir -p "$dst"
+	if [ -e "$src/.git" ]; then
+		git -c safe.directory="$src" -C "$src" archive HEAD | tar -x -C "$dst"
+	else
+		cp -a "$src"/. "$dst/"
+		rm -rf "$dst/.git"
+	fi
+}
+REPO_REVISION="unknown"
+if [ -e "$REPO_DIR/.git" ]; then
+	REPO_REVISION="$(git -c safe.directory="$REPO_DIR" -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+	_archive_git "$REPO_DIR" "$ROOTFS/tmp/repo"
+fi
+[ -n "${CORE_DIR:-}" ] && _archive_git "$CORE_DIR" "$ROOTFS/tmp/repo/core"
+[ -n "${DESKTOP_REPO:-}" ] && _archive_git "$DESKTOP_REPO" "$ROOTFS/tmp/repo/desktop"
+[ -n "${DEVICES_REPO:-}" ] && _archive_git "$DEVICES_REPO" "$ROOTFS/tmp/repo/devices"
 chmod -R u=rwX,go=rX "$ROOTFS/tmp/repo"
 # Which revision an image was built from, so a copy found on a card can be told
 # apart from the checkout it came from.
@@ -150,10 +182,11 @@ chroot "$ROOTFS" env \
 
 if [ -d "$WIFI_DIR" ]; then
 	log "Installing Wi-Fi profiles from $WIFI_DIR"
-	"$REPO_DIR/scripts/wifi.sh" import "$WIFI_DIR" "$ROOTFS"
+	"$CORE_DIR/scripts/wifi.sh" import "$WIFI_DIR" "$ROOTFS"
 fi
 
-rm -rf "$ROOTFS/tmp/packages" "$ROOTFS/tmp/ui-files" "$ROOTFS/tmp/repo" \
+rm -rf "$ROOTFS/tmp/packages" "$ROOTFS/tmp/device-files" "$ROOTFS/tmp/ui-files" \
+	"$ROOTFS/tmp/lazyos-runtime" "$ROOTFS/tmp/lazyos-etc" "$ROOTFS/tmp/repo" \
 	"$ROOTFS/tmp/opencode.tgz" "$ROOTFS/root/rootfs-setup.sh"
 
 # Whatever is built here ships as a disk (write-sd.sh, make-image.sh) or is

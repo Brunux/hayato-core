@@ -30,6 +30,8 @@ if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n \
 		BUILD_ROOT="$BUILD_ROOT" WORK_DIR="$WORK_DIR" SRC_DIR="$SRC_DIR" \
 		DEVICE="$DEVICE" ROOTFS="$ROOTFS" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")"
 fi
 
@@ -59,8 +61,10 @@ done < <("$ROOTFS/usr/bin/lazyos" --symlinks)
 # Read back what was written: a binary that does not answer is a broken copy,
 # and the version is what check-system.sh compares with the image's record.
 REPORTED="$("$ROOTFS/usr/bin/lazyos" --version 2>/dev/null || true)"
-[ "$REPORTED" = "$(cat "$REPO_DIR/VERSION")" ] ||
-	die "$ROOTFS/usr/bin/lazyos does not report $(cat "$REPO_DIR/VERSION") (got '$REPORTED')"
+_VER_FILE="$CORE_DIR/VERSION"
+[ -n "${DESKTOP_REPO:-}" ] && [ -f "$DESKTOP_REPO/VERSION" ] && _VER_FILE="$DESKTOP_REPO/VERSION"
+[ "$REPORTED" = "$(cat "$_VER_FILE")" ] ||
+	die "$ROOTFS/usr/bin/lazyos does not report $(cat "$_VER_FILE") (got '$REPORTED')"
 
 # One FAIL-shaped answer per name here beats a dozen on the card: a link that
 # does not resolve is the key that opens nothing, and only this script can say

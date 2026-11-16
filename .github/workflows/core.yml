@@ -1,0 +1,60 @@
+name: Core OS Builder & Boot Backends
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax across scripts and boot backends
+        run: |
+          for f in scripts/*.sh boot/*.sh; do
+            bash -n "$f"
+          done
+      - name: Verify modular lib.sh and boot backends with mock devices
+        run: |
+          TMP="$(mktemp -d)"
+          mkdir -p "$TMP/devices" "$TMP/kernels/arm64-mainline"
+          echo "6.12.28" > "$TMP/kernels/arm64-mainline/version"
+          printf 'CONFIG_LOCALVERSION="-lazyos"\n' > "$TMP/kernels/arm64-mainline/base.config"
+
+          for b in depthcharge uefi extlinux; do
+            mkdir -p "$TMP/devices/mock-$b"
+            printf 'arm64-mainline\n' > "$TMP/devices/mock-$b/kernel"
+            printf 'quiet loglevel=2\n' > "$TMP/devices/mock-$b/kernel-cmdline.conf"
+            printf 'deviceinfo_codename="mock-%s"\ndeviceinfo_arch="aarch64"\ndeviceinfo_boot_type="%s"\ndeviceinfo_dtb="vendor/mock*.dtb"\n' "$b" "$b" > "$TMP/devices/mock-$b/deviceinfo"
+          done
+
+          for b in depthcharge uefi extlinux; do
+            (
+              export BUILD_ROOT="$TMP/build"
+              export LAZYOS_DEVICES_DIR="$TMP"
+              export DEVICE="mock-$b"
+              . ./scripts/lib.sh
+              . "$BOOT_BACKEND"
+              [ "$BOOT_TYPE" = "$b" ]
+              for fn in boot_release boot_layout_create boot_layout_mount boot_layout_umount boot_write_fstab boot_install boot_update_running; do
+                declare -F "$fn" >/dev/null
+              done
+              mock_root="$TMP/root-$b"
+              mkdir -p "$mock_root/boot/dtbs/vendor" "$mock_root/etc/lazyos"
+              touch "$mock_root/boot/vmlinuz-6.12.28-lazyos" "$mock_root/boot/initrd.img-6.12.28-lazyos" "$mock_root/boot/dtbs/vendor/mock-board.dtb"
+              if [ "$b" = "uefi" ]; then
+                boot_install "$mock_root" "$mock_root" "root=UUID=1111-2222 rootwait rw"
+                [ -f "$mock_root/boot/efi/loader/entries/lazyos.conf" ]
+                grep -q 'root=UUID=1111-2222' "$mock_root/boot/efi/loader/entries/lazyos.conf"
+              elif [ "$b" = "extlinux" ]; then
+                boot_install "$mock_root" "$mock_root" "root=UUID=3333-4444 rootwait rw"
+                [ -f "$mock_root/boot/extlinux/extlinux.conf" ]
+                grep -q 'FDT /dtbs/vendor/mock-board.dtb' "$mock_root/boot/extlinux/extlinux.conf"
+              fi
+              echo "Backend $b OK"
+            )
+          done
+
+          ./scripts/check-system.sh --help >/dev/null
+          rm -rf "$TMP"

@@ -8,7 +8,10 @@ set -euo pipefail
 [ -n "${1:-}" ] && ROOTFS="$1"
 
 if [ "$(id -u)" -ne 0 ]; then
-	exec sudo -n DEVICE="$DEVICE" "$(readlink -f "$0")" "${1:-}"
+	exec sudo -n DEVICE="$DEVICE" KERNEL_STAGE="$KERNEL_STAGE" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		"$(readlink -f "$0")" "${1:-}"
 fi
 
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"

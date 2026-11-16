@@ -13,21 +13,26 @@
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
-"$REPO_DIR/scripts/build-kernel.sh"
+require_devices
+require_desktop
+
+"$DEVICES_REPO/scripts/build-kernel.sh"
 # The rootfs does not install Debian's sway (uis/sway/packages.list), so the
 # compositor has to be built before the image is useful.
-"$REPO_DIR/scripts/build-swayfx.sh"
+"$DESKTOP_REPO/scripts/build-swayfx.sh"
 # Debian packages no workspace renamer, and the bar's pills depend on it.
-"$REPO_DIR/scripts/build-workstyle.sh"
-# The session framework (docs/plan-ui.md): one binary, built from this
-# repository's Rust workspace.
-"$REPO_DIR/scripts/build-lazyos.sh"
-"$REPO_DIR/scripts/build-rootfs.sh"
-"$REPO_DIR/scripts/install-kernel.sh"
-"$REPO_DIR/scripts/install-swayfx.sh"
-"$REPO_DIR/scripts/install-workstyle.sh"
-"$REPO_DIR/scripts/install-lazyos.sh"
-"$REPO_DIR/scripts/make-kpart.sh"
+"$DESKTOP_REPO/scripts/build-workstyle.sh"
+# The session framework (docs/plan-ui.md): one binary, built from lazyos-desktop's
+# Rust workspace.
+"$DESKTOP_REPO/scripts/build-lazyos.sh"
+"$CORE_DIR/scripts/build-rootfs.sh"
+"$CORE_DIR/scripts/install-kernel.sh"
+"$CORE_DIR/scripts/install-swayfx.sh"
+"$CORE_DIR/scripts/install-workstyle.sh"
+"$CORE_DIR/scripts/install-lazyos.sh"
+if [ "$BOOT_TYPE" = "depthcharge" ]; then
+	"$CORE_DIR/scripts/make-kpart.sh"
+fi
 
 log "Build complete."
 log "  device : $DEVICE"

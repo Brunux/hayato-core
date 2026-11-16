@@ -31,6 +31,8 @@ if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n \
 		BUILD_ROOT="$BUILD_ROOT" WORK_DIR="$WORK_DIR" SRC_DIR="$SRC_DIR" \
 		DEVICE="$DEVICE" ROOTFS="$ROOTFS" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")"
 fi
 

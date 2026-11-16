@@ -12,13 +12,15 @@
 # Run it from the microSD-booted Debian system with CONFIRM=yes.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
-. "$(dirname "$0")/lib-cgpt.sh"
+. "$BOOT_BACKEND"
 
 BLOCK="${DEVICE_BLOCK:-/dev/mmcblk0}"
 
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" DEVICE_BLOCK="$BLOCK" \
 		BOOT_SIZE_MIB="$BOOT_SIZE_MIB" BOOT_FS="$BOOT_FS" CONFIRM="${CONFIRM:-}" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "$@"
 fi
 
@@ -39,13 +41,12 @@ log "  running root: $ROOT_SRC (kernel $KERNEL_RELEASE)"
 lsblk "$BLOCK"
 [ "${CONFIRM:-}" = "yes" ] || die "refusing to continue without CONFIRM=yes"
 
-log "Creating ChromeOS GPT on $BLOCK (kernel $((KPART_SIZE_SECTORS * 512 / 1024 / 1024)) MiB, boot ${BOOT_SIZE_MIB} MiB)"
-disk_release "$BLOCK"
-disk_layout_create "$BLOCK"
-disk_layout_parts "$BLOCK"
+log "Creating $BOOT_TYPE partition layout on $BLOCK"
+boot_release "$BLOCK"
+boot_layout_create "$BLOCK"
 
 MNT="$WORK_DIR/emmc-mnt-$DEVICE"
-disk_layout_mount "$BLOCK" "$MNT"
+boot_layout_mount "$BLOCK" "$MNT"
 
 # Copy the running system. /boot ends up on the separate boot partition because
 # it is mounted inside the target, and everything volatile is left out so the
@@ -87,21 +88,15 @@ rm -f "$MNT"/etc/ssh/ssh_host_*
 [ -e "$MNT/sbin/init" ] ||
 	die "$MNT/sbin/init missing: the boot would stop with 'No init found'"
 
-disk_layout_fstab "$MNT"
+boot_write_fstab "$MNT"
 
-log "Building kpart for the eMMC root (root=UUID=$ROOT_UUID, kernel $KERNEL_RELEASE)"
-"$REPO_DIR/scripts/make-kpart.sh" "$MNT" "$KPART.emmc" "root=UUID=$ROOT_UUID rootwait rw"
-kpart_fits "$KPART.emmc" "$KPART_PART"
-kpart_verify "$KPART.emmc"
-
-log "Writing kpart to $KPART_PART"
-dd if="$KPART.emmc" of="$KPART_PART" bs=1M conv=fsync
-sync
-disk_layout_umount "$MNT"
+log "Installing $BOOT_TYPE boot target for eMMC root (root=UUID=$ROOT_UUID, kernel $KERNEL_RELEASE)"
+boot_install "$MNT" "$BLOCK" "root=UUID=$ROOT_UUID rootwait rw"
+boot_layout_umount "$MNT"
 
 log "Done. Reboot and boot the internal disk (the eMMC)."
 log "  This firmware shows a developer-mode menu instead of the Ctrl+D/Ctrl+U screen:"
 log "  'internal disk' is the eMMC, 'external disk' is the microSD. With the card out"
 log "  the internal one is the only choice; with the card in, pick it in the menu."
-log "  After a kernel update on the eMMC system, run scripts/install-kpart.sh there."
+log "  After a kernel update on the eMMC system, run /usr/libexec/lazyos/install-boot.sh there."
 cgpt show "$BLOCK"

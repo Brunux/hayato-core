@@ -34,6 +34,8 @@ if [ "$(id -u)" -ne 0 ]; then
 	# sudo -n starts from a clean environment, so CONFIRM=yes has to be forwarded
 	# explicitly or the guard below can never pass through the re-exec.
 	exec sudo -n DEVICE="$DEVICE" CONFIRM="${CONFIRM:-}" RESUME="${RESUME:-}" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "$@"
 fi
 
@@ -118,7 +120,7 @@ else
 			fi
 			;;
 	esac
-	"$REPO_DIR/scripts/make-kpart.sh" / "$IMG" "$_cmdline"
+	"$CORE_DIR/scripts/make-kpart.sh" / "$IMG" "$_cmdline"
 fi
 
 kpart_fits "$IMG" "$PART"

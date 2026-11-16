@@ -255,37 +255,25 @@ EOF
 # appears twice in /proc/interrupts - its data IRQ from the GIC and, first, a
 # `mt-eint ... cd` line for the card-detect GPIO. `/11f70000.mmc/ {print $1;
 # exit}` therefore selected the card-detect EINT, whose affinity is not
-# per-CPU routable, so the write silently failed and the real storage IRQ was
-# never pinned (measured on the card: IRQ 33 cd at 0-7, IRQ 270 data at 0-7).
 install -d /usr/local/sbin
-cat >/usr/local/sbin/lazyos-irq-balance <<'EOF'
-#!/bin/sh
-for irq in $(awk '$NF == "11f70000.mmc" {print $1; exit}' /proc/interrupts 2>/dev/null | tr -d ':'); do
-	[ -w "/proc/irq/$irq/smp_affinity_list" ] && echo 2 > "/proc/irq/$irq/smp_affinity_list" 2>/dev/null || true
-done
-for irq in $(awk '$NF == "11f60000.mmc" {print $1; exit}' /proc/interrupts 2>/dev/null | tr -d ':'); do
-	[ -w "/proc/irq/$irq/smp_affinity_list" ] && echo 3 > "/proc/irq/$irq/smp_affinity_list" 2>/dev/null || true
-done
-EOF
-chmod 755 /usr/local/sbin/lazyos-irq-balance
 
-install -d /etc/systemd/system
-cat >/etc/systemd/system/lazyos-irq-balance.service <<'EOF'
-[Unit]
-Description=Balance storage IRQs away from CPU0 on MT8192
-After=local-fs.target
+if [ -d /tmp/lazyos-etc ]; then
+	install -d -m 755 /etc/lazyos
+	( cd /tmp/lazyos-etc && cp -a . /etc/lazyos/ )
+	chmod 644 /etc/lazyos/device /etc/lazyos/deviceinfo /etc/lazyos/kernel-cmdline.conf 2>/dev/null || true
+fi
 
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/lazyos-irq-balance
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
+if [ -d /tmp/lazyos-runtime ]; then
+	install -d -m 755 /usr/libexec/lazyos
+	( cd /tmp/lazyos-runtime && cp -a . /usr/libexec/lazyos/ )
+	chmod 755 /usr/libexec/lazyos/*.sh 2>/dev/null || true
+	chmod 755 /usr/libexec/lazyos/boot/*.sh 2>/dev/null || true
+	chmod 755 /usr/libexec/lazyos/check/*.sh 2>/dev/null || true
+	ln -sfn /usr/libexec/lazyos/check-system.sh /usr/local/sbin/check-system.sh
+fi
 
 log "Enabling services"
-systemctl enable NetworkManager ssh lazyos-irq-balance 2>/dev/null || true
+systemctl enable NetworkManager ssh 2>/dev/null || true
 # systemd-oomd (PSI-based; Debian's defaults configure it) and the zram swap the
 # generator creates. systemd-zram-generator needs no enabling - it is a systemd
 # generator, and dev-zram0.swap exists from the moment the unit files are
@@ -355,6 +343,14 @@ fi
 log "Installing UI files ($UI)"
 # uis/<ui>/files is a tree: everything but home/ is copied over / as root,
 # home/ is merged into the user's home directory.
+if [ -d /tmp/device-files ]; then
+	log "Installing device files overlay"
+	for entry in /tmp/device-files/*; do
+		[ -e "$entry" ] || continue
+		cp -a "$entry" /
+	done
+fi
+
 if [ -d /tmp/ui-files ]; then
 	# The shipped configuration is written against the default user's home;
 	# rewrite it when a different USERNAME was requested.
@@ -470,11 +466,6 @@ if [ -d /tmp/repo ]; then
 	cp -a /tmp/repo "$DEST"
 	[ -f /etc/debian-aarch64-revision ] && cp /etc/debian-aarch64-revision "$DEST/REVISION"
 	chown -R "$USERNAME:$USERNAME" "$DEST"
-	# The health report is standalone by design, so ship it as a system tool too
-	# (it still takes the checkout as an argument for its package checks).
-	install -Dm755 /tmp/repo/scripts/check-system.sh /usr/local/sbin/check-system.sh
-else
-	warn "no repository staged for the image: the device-side scripts will be missing"
 fi
 
 log "Rootfs configuration done"

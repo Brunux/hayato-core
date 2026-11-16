@@ -25,7 +25,7 @@
 # release notes. This script does not do it, because it does not know the card.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
-. "$(dirname "$0")/lib-cgpt.sh"
+. "$BOOT_BACKEND"
 . "$(dirname "$0")/lib-dist.sh"
 
 IMG="${1:-$WORK_DIR/$DEVICE.img}"
@@ -33,13 +33,16 @@ SIZE_MIB="${2:-${IMAGE_SIZE_MIB:-4096}}"
 KPART_IMG="$WORK_DIR/kpart-image-$DEVICE.img"
 
 if [ "$(id -u)" -ne 0 ]; then
-	exec sudo -n DEVICE="$DEVICE" "$(readlink -f "$0")" "$IMG" "$SIZE_MIB"
+	exec sudo -n DEVICE="$DEVICE" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		"$(readlink -f "$0")" "$IMG" "$SIZE_MIB"
 fi
 
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"
 [ -f "$ROOTFS/boot/vmlinuz-$KERNEL_RELEASE" ] ||
 	die "the rootfs has no /boot/vmlinuz-$KERNEL_RELEASE: run install-kernel.sh first"
-require_compositor "$ROOTFS"
+[ -z "${DESKTOP_REPO:-}" ] || require_compositor
 
 log "Image: $IMG ($SIZE_MIB MiB, device=$DEVICE)"
 rm -f "$IMG"
@@ -50,13 +53,12 @@ truncate -s "${SIZE_MIB}M" "$IMG"
 # reimplemented with partition offsets.
 MNT="$WORK_DIR/image-mnt-$DEVICE"
 LOOP="$(losetup --show -f -P "$IMG")"
-trap 'disk_layout_umount "$MNT" 2>/dev/null || true; losetup -d "$LOOP" 2>/dev/null || true' EXIT
+trap 'boot_layout_umount "$MNT" 2>/dev/null || true; losetup -d "$LOOP" 2>/dev/null || true' EXIT
 log "Loop device: $LOOP"
 
-disk_release "$LOOP"
-disk_layout_create "$LOOP"
-disk_layout_parts "$LOOP"
-disk_layout_mount "$LOOP" "$MNT"
+boot_release "$LOOP"
+boot_layout_create "$LOOP"
+boot_layout_mount "$LOOP" "$MNT"
 
 # The maintainer's state is excluded from the copy, not deleted after it: a
 # deleted file is still in the image's free blocks (scripts/lib-dist.sh).
@@ -70,20 +72,24 @@ _stale_mounts="$(findmnt -rn -o TARGET 2>/dev/null | grep -F "$ROOTFS/" || true)
 EXCLUDES="$WORK_DIR/dist-excludes-$DEVICE.txt"
 dist_write_excludes "$EXCLUDES"
 rsync -aHAX --delete --exclude-from="$EXCLUDES" "$ROOTFS"/ "$MNT"/
-disk_layout_fstab "$MNT"
+boot_write_fstab "$MNT"
 dist_sanitize "$MNT"
 dist_assert_clean "$MNT"
 
 CMDLINE_EXTRA="root=UUID=$ROOT_UUID rootwait rw"
-log "Building kpart (cmdline: $KERNEL_CMDLINE$CMDLINE_EXTRA)"
-"$REPO_DIR/scripts/make-kpart.sh" "$MNT" "$KPART_IMG" "$CMDLINE_EXTRA"
-kpart_fits "$KPART_IMG" "$KPART_PART"
-kpart_verify "$KPART_IMG"
-
-log "Writing kpart to $KPART_PART"
-dd if="$KPART_IMG" of="$KPART_PART" bs=1M conv=fsync
-sync
-disk_layout_umount "$MNT"
+log "Installing boot config ($BOOT_TYPE, cmdline: $KERNEL_CMDLINE $CMDLINE_EXTRA)"
+if [ "$BOOT_TYPE" = "depthcharge" ]; then
+	boot_install "$MNT" "$KPART_IMG" "$CMDLINE_EXTRA"
+	kpart_fits "$KPART_IMG" "$KPART_PART"
+	kpart_verify "$KPART_IMG"
+	log "Writing kpart to $KPART_PART"
+	dd if="$KPART_IMG" of="$KPART_PART" bs=1M conv=fsync
+	sync
+else
+	boot_install "$MNT" "$MNT" "$CMDLINE_EXTRA"
+	sync
+fi
+boot_layout_umount "$MNT"
 losetup -d "$LOOP"
 trap - EXIT
 # The filesystem being clean is not enough: the image is what gets published.
@@ -91,4 +97,4 @@ dist_assert_no_profile_bytes "$IMG"
 
 log "Done: $IMG ($(du -h "$IMG" | cut -f1) of data, $(du -h --apparent-size "$IMG" | cut -f1) apparent)"
 log "Flash it with: xz -dc ${IMG##*/}.xz | sudo dd of=<card> bs=4M conv=fsync"
-cgpt show "$IMG" || true
+[ "$BOOT_TYPE" = "depthcharge" ] && cgpt show "$IMG" || parted -s "$IMG" print || true

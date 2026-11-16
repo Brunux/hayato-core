@@ -30,7 +30,7 @@
 #     /etc/fstab is the unconfigured one the build leaves behind.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
-. "$(dirname "$0")/lib-cgpt.sh"
+. "$BOOT_BACKEND"
 . "$(dirname "$0")/lib-dist.sh"
 
 OUTDIR="${1:-$WORK_DIR/release-$DEVICE}"
@@ -40,7 +40,10 @@ export IMAGE_SIZE_MIB
 # build-rootfs.sh documents the same pitfall: sudo drops the environment, so
 # every resolved input is forwarded explicitly.
 if [ "$(id -u)" -ne 0 ]; then
-	exec sudo -n DEVICE="$DEVICE" IMAGE_SIZE_MIB="$IMAGE_SIZE_MIB" "$(readlink -f "$0")" "$OUTDIR"
+	exec sudo -n DEVICE="$DEVICE" IMAGE_SIZE_MIB="$IMAGE_SIZE_MIB" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		"$(readlink -f "$0")" "$OUTDIR"
 fi
 
 IMG="$OUTDIR/$DEVICE.img"
@@ -52,7 +55,7 @@ mkdir -p "$OUTDIR"
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"
 
 log "1/4 Image"
-"$REPO_DIR/scripts/make-image.sh" "$IMG" "$IMAGE_SIZE_MIB"
+"$CORE_DIR/scripts/make-image.sh" "$IMG" "$IMAGE_SIZE_MIB"
 
 log "2/4 Compressing the image"
 xz -T0 -6 -f -k "$IMG"
@@ -80,21 +83,26 @@ tar --acls --xattrs --xattrs-include='*' --numeric-owner -cpf - -C "$STAGE" . |
 	zstd -T0 -12 -q -f -o "$TARBALL"
 rm -rf "$STAGE"
 
-log "4/4 kpart of the released image"
-# Read the image's root UUID back instead of assuming it: the kpart must embed
-# exactly the UUID the image boots with.
-LOOP="$(losetup --show -f -P "$IMG")"
-ROOT_UUID_IMG="$(blkid -s UUID -o value "${LOOP}p3" 2>/dev/null || true)"
-losetup -d "$LOOP"
-[ -n "$ROOT_UUID_IMG" ] || die "could not read the image's root UUID back from $IMG"
-"$REPO_DIR/scripts/make-kpart.sh" "$ROOTFS" "$KPART_OUT" "root=UUID=$ROOT_UUID_IMG rootwait rw"
-kpart_verify "$KPART_OUT"
+if [ "$BOOT_TYPE" = "depthcharge" ]; then
+	log "4/4 kpart of the released image"
+	# Read the image's root UUID back instead of assuming it: the kpart must embed
+	# exactly the UUID the image boots with.
+	LOOP="$(losetup --show -f -P "$IMG")"
+	ROOT_UUID_IMG="$(blkid -s UUID -o value "${LOOP}p3" 2>/dev/null || true)"
+	losetup -d "$LOOP"
+	[ -n "$ROOT_UUID_IMG" ] || die "could not read the image's root UUID back from $IMG"
+	"$CORE_DIR/scripts/make-kpart.sh" "$ROOTFS" "$KPART_OUT" "root=UUID=$ROOT_UUID_IMG rootwait rw"
+	kpart_verify "$KPART_OUT"
+else
+	log "4/4 Skipping depthcharge kpart ($BOOT_TYPE target boots via /boot)"
+fi
 
 log "Checksums"
 (
 	cd "$OUTDIR"
-	sha256sum "$(basename "$IMG")" "$(basename "$IMG").xz" "$(basename "$TARBALL")" \
-		"$(basename "$KPART_OUT")" >SHA256SUMS
+	_sums=("$(basename "$IMG")" "$(basename "$IMG").xz" "$(basename "$TARBALL")")
+	[ -f "$KPART_OUT" ] && _sums+=("$(basename "$KPART_OUT")")
+	sha256sum "${_sums[@]}" >SHA256SUMS
 	cat SHA256SUMS
 ) | sed 's/^/  /'
 

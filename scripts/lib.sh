@@ -1,181 +1,195 @@
-# shellcheck shell=bash
-# Shared configuration for the debian-aarch64 build system.
-#
-# The build is device-agnostic:
-#   * a device lives in devices/<codename>/ and is described by a pmaports-style
-#     `deviceinfo` (plus kernel-cmdline.conf and modules-initfs);
-#   * the kernel to use is named by devices/<codename>/kernel and lives in
-#     kernels/<flavor>/ (version, config, patches/series).
-#
-# Select a device with the DEVICE environment variable. When only one device is
-# present it is picked automatically.
-set -euo pipefail
+#!/bin/bash
+# Common environment, paths, sub-project discovery, and helpers for lazyos-core scripts.
+# Sourced by every script; does not execute anything directly.
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[ -n "${_LIB_SH_LOADED:-}" ] && return 0
+_LIB_SH_LOADED=1
 
-# Resolve the *invoking* user's home even when running under sudo, so large
-# artifacts stay on the real filesystem and are not written to /root.
+# Logging helpers
+log()  { printf '\033[1;34m[lazyos]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[1;31m[fail]\033[0m %s\n' "$*" >&2; exit 1; }
+need_root() { [ "$(id -u)" -eq 0 ] || die "this command must run as root (use sudo)"; }
+
+CORE_DIR="${CORE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+_PARENT_DIR="$(cd "$CORE_DIR/.." && pwd)"
+
+if [ -n "${LAZYOS_ROOT_DIR:-}" ]; then
+	REPO_DIR="$LAZYOS_ROOT_DIR"
+elif [ -f "$_PARENT_DIR/.gitmodules" ] || { [ -d "$_PARENT_DIR/desktop" ] && [ -d "$_PARENT_DIR/devices" ]; }; then
+	REPO_DIR="$_PARENT_DIR"
+else
+	REPO_DIR="$CORE_DIR"
+fi
+
+_find_subrepo() {
+	local explicit="$1" umb="$2" sib="$3" probe="$4" d
+	for d in "$explicit" "$REPO_DIR/$umb" "$_PARENT_DIR/$umb" "$_PARENT_DIR/$sib" "$CORE_DIR/$umb"; do
+		[ -n "$d" ] && [ -d "$d/$probe" ] && { (cd "$d" && pwd); return 0; }
+	done
+	return 1
+}
+
+DEVICES_REPO="${DEVICES_REPO:-$(_find_subrepo "${LAZYOS_DEVICES_DIR:-}" devices lazyos-devices devices || true)}"
+DESKTOP_REPO="${DESKTOP_REPO:-$(_find_subrepo "${LAZYOS_DESKTOP_DIR:-}" desktop lazyos-desktop uis || true)}"
+
+# Working paths on the build host.
+# Under sudo without -E, HOME becomes /root; keep BUILD_ROOT tied to SUDO_USER's home.
 if [ -n "${SUDO_USER:-}" ]; then
-	_invoking_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+	_invoking_home="$(getent passwd "$SUDO_USER" | cut -d: -f6 || echo "/home/$SUDO_USER")"
 else
 	_invoking_home="$HOME"
 fi
-# /tmp is a small tmpfs on the target device; keep large artifacts on disk.
 BUILD_ROOT="${BUILD_ROOT:-${_invoking_home:-/root}/.cache/debian-aarch64}"
-WORK_DIR="${WORK_DIR:-$BUILD_ROOT/work}"
-SRC_DIR="${SRC_DIR:-$BUILD_ROOT/src}"
-mkdir -p "$WORK_DIR" "$SRC_DIR"
+WORK_DIR="$BUILD_ROOT/work"
+SRC_DIR="$BUILD_ROOT/src"
+mkdir -p "$WORK_DIR" "$SRC_DIR" 2>/dev/null || true
 
-DEVICES_DIR="$REPO_DIR/devices"
-KERNELS_DIR="$REPO_DIR/kernels"
-PACKAGES_DIR="$REPO_DIR/packages"
-# A UI (graphical shell) is a package list plus a file tree:
-#   uis/<name>/packages.list   packages to install
-#   uis/<name>/files/          tree overlaid onto the rootfs (etc/ as root,
-#                              home/ into /home/$USERNAME)
-UIS_DIR="$REPO_DIR/uis"
+PACKAGES_DIR="$CORE_DIR/packages"
+DEVICES_DIR="${DEVICES_DIR:-${DEVICES_REPO:+$DEVICES_REPO/devices}}"
+KERNELS_DIR="${KERNELS_DIR:-${DEVICES_REPO:+$DEVICES_REPO/kernels}}"
+UIS_DIR="${UIS_DIR:-${DESKTOP_REPO:+$DESKTOP_REPO/uis}}"
 UI="${UI:-sway}"
-UI_DIR="$UIS_DIR/$UI"
+UI_DIR="${UIS_DIR:+$UIS_DIR/$UI}"
+WIFI_DIR="${WIFI_DIR:-$BUILD_ROOT/wifi}"
 
-log()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
-warn() { printf '\033[1;33mWARN: %s\033[0m\n' "$*" >&2; }
-die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
-need_root() { [ "$(id -u)" -eq 0 ] || die "this command must run as root (use sudo)"; }
-
-# ---------------------------------------------------------------------------
-# Device
-# ---------------------------------------------------------------------------
-if [ -z "${DEVICE:-}" ]; then
-	DEVICE="$(cd "$DEVICES_DIR" && ls -1 | head -n1)"
+# Device selection (skips _template when discovering boards).
+if [ -n "${DEVICES_DIR:-}" ] && [ -d "$DEVICES_DIR" ]; then
+	if [ -z "${DEVICE:-}" ]; then
+		if [ -f /etc/lazyos/device ] && [ -d "$DEVICES_DIR/$(tr -d ' \t\r\n' </etc/lazyos/device)" ]; then
+			DEVICE="$(tr -d ' \t\r\n' </etc/lazyos/device)"
+		elif [ -d "$DEVICES_DIR/google-asurada" ]; then
+			DEVICE="google-asurada"
+		else
+			DEVICE="$(find "$DEVICES_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '_template' -exec basename {} \; | sort | head -n1)"
+		fi
+	fi
+	[ -n "${DEVICE:-}" ] || die "no device selected or found in $DEVICES_DIR"
+	DEVICE_DIR="$DEVICES_DIR/$DEVICE"
+	[ -d "$DEVICE_DIR" ] || die "unknown device '$DEVICE' (see $DEVICES_DIR)"
+	# shellcheck disable=SC1090
+	. "$DEVICE_DIR/deviceinfo"
+elif [ -f /etc/lazyos/deviceinfo ]; then
+	DEVICE="${DEVICE:-$(tr -d ' \t\r\n' </etc/lazyos/device 2>/dev/null || echo runtime)}"
+	DEVICE_DIR="/etc/lazyos"
+	# shellcheck disable=SC1091
+	. /etc/lazyos/deviceinfo
+elif [ "${LAZYOS_ALLOW_NO_DEVICE:-0}" = 1 ]; then
+	DEVICE="${DEVICE:-generic}"
+	DEVICE_DIR=""
+else
+	die "no lazyos-devices checkout or /etc/lazyos/deviceinfo found (set LAZYOS_DEVICES_DIR)"
 fi
-DEVICE_DIR="$DEVICES_DIR/$DEVICE"
-[ -d "$DEVICE_DIR" ] || die "unknown device '$DEVICE' (see $DEVICES_DIR)"
 
-# deviceinfo is a sourceable shell file in pmaports format.
-# shellcheck disable=SC1091
-. "$DEVICE_DIR/deviceinfo"
+BOOT_TYPE="${deviceinfo_boot_type:-depthcharge}"
+BOOT_BACKEND="$CORE_DIR/boot/${BOOT_TYPE}.sh"
+[ -f "$BOOT_BACKEND" ] || die "unsupported deviceinfo_boot_type='$BOOT_TYPE' (missing $BOOT_BACKEND)"
 
-DEVICE_ARCH="${deviceinfo_arch:-arm64}"
-# Kernel command line base (kernel-cmdline.conf) joined into one line.
-# KERNEL_CMDLINE_OVERRIDE replaces it entirely; useful for a verbose debug boot
-# (e.g. KERNEL_CMDLINE_OVERRIDE="console=tty0 ignore_loglevel loglevel=7").
-KERNEL_CMDLINE="${KERNEL_CMDLINE_OVERRIDE:-$(tr '\n' ' ' <"$DEVICE_DIR/kernel-cmdline.conf" 2>/dev/null || true)}"
-# Modules to force into the initramfs.
-INITFS_MODULES="$(tr '\n' ' ' <"$DEVICE_DIR/modules-initfs" 2>/dev/null || true)"
-# DTBs to embed (relative to /boot/dtbs; may contain a glob).
-DTB_GLOB="${deviceinfo_dtb:-}"
-
-# ---------------------------------------------------------------------------
-# Kernel
-# ---------------------------------------------------------------------------
-KERNEL_FLAVOR="$(cat "$DEVICE_DIR/kernel")"
-KERNEL_DIR="$KERNELS_DIR/$KERNEL_FLAVOR"
-[ -d "$KERNEL_DIR" ] || die "kernel flavor '$KERNEL_FLAVOR' (device '$DEVICE') not found in $KERNELS_DIR"
-
-KERNEL_VERSION="$(cat "$KERNEL_DIR/version")"
-KERNEL_CONFIG="$KERNEL_DIR/config.aarch64"
-KERNEL_PATCH_DIR="$KERNEL_DIR/patches"
-KERNEL_TARBALL="linux-${KERNEL_VERSION}.tar.xz"
-KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_VERSION%%.*}.x/${KERNEL_TARBALL}"
-# Kernel ARCH name (deviceinfo uses distro-style names).
-case "$DEVICE_ARCH" in
-	aarch64 | arm64) KERNEL_ARCH=arm64 ;;
-	armv7 | arm) KERNEL_ARCH=arm ;;
-	x86_64 | amd64) KERNEL_ARCH=x86 ;;
-	*) KERNEL_ARCH="$DEVICE_ARCH" ;;
+ARCH="${deviceinfo_arch:-aarch64}"
+case "$ARCH" in
+	aarch64) KERNEL_ARCH="arm64" ;;
+	x86_64)  KERNEL_ARCH="x86_64" ;;
+	*)       die "unsupported architecture: $ARCH" ;;
 esac
-KERNEL_SRC="$SRC_DIR/linux-$KERNEL_VERSION"
-# Derive the release string from the kernel config (no duplication).
-KERNEL_LOCALVERSION="$(sed -n 's/^CONFIG_LOCALVERSION="\(.*\)"$/\1/p' "$KERNEL_CONFIG")"
-# The release can be overridden for a kernel that was not built from this repo,
-# e.g. the kernel a booted system is actually running (see install-kpart.sh).
-KERNEL_RELEASE="${KERNEL_RELEASE:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
 
-# ---------------------------------------------------------------------------
-# Compositor
-# ---------------------------------------------------------------------------
-# The session does not run Debian's sway: it runs a wlroots fork that can round
-# corners, draw shadows and blur, built from compositors/<name>/ (version pins +
-# checksums) into .debs under $COMPOSITOR_STAGE. Everything else keeps the name
-# `sway`: the package provides it, the binaries are /usr/bin/sway*, and the
-# configuration lives in /etc/sway.
-COMPOSITOR="swayfx"
-COMPOSITOR_DIR="$REPO_DIR/compositors/$COMPOSITOR"
-[ -d "$COMPOSITOR_DIR" ] || die "compositor '$COMPOSITOR' not found in $REPO_DIR/compositors"
-COMPOSITOR_VERSION="$(cat "$COMPOSITOR_DIR/version")"
-SCENEFX_VERSION="$(cat "$COMPOSITOR_DIR/scenefx-version")"
-COMPOSITOR_STAGE="$WORK_DIR/${COMPOSITOR}-stage"
-COMPOSITOR_SRC="$SRC_DIR/$COMPOSITOR-$COMPOSITOR_VERSION"
-SCENEFX_SRC="$SRC_DIR/scenefx-$SCENEFX_VERSION"
-COMPOSITOR_TARBALL="$COMPOSITOR-$COMPOSITOR_VERSION.tar.gz"
-SCENEFX_TARBALL="scenefx-$SCENEFX_VERSION.tar.gz"
-COMPOSITOR_URL="https://github.com/WillPower3309/$COMPOSITOR/archive/refs/tags/$COMPOSITOR_VERSION.tar.gz"
-SCENEFX_URL="https://github.com/wlrfx/scenefx/archive/refs/tags/$SCENEFX_VERSION.tar.gz"
+if [ -n "${DEVICE_DIR:-}" ] && [ -r "$DEVICE_DIR/kernel-cmdline.conf" ]; then
+	KERNEL_CMDLINE="${KERNEL_CMDLINE_OVERRIDE:-$(tr '\n' ' ' <"$DEVICE_DIR/kernel-cmdline.conf" 2>/dev/null || true)}"
+else
+	KERNEL_CMDLINE="${KERNEL_CMDLINE_OVERRIDE:-quiet loglevel=2 transparent_hugepage=madvise}"
+fi
+INITFS_MODULES="${INITFS_MODULES_OVERRIDE:-$([ -n "${DEVICE_DIR:-}" ] && grep -v '^[[:space:]]*#' "$DEVICE_DIR/modules-initfs" 2>/dev/null | tr '\n' ' ' || true)}"
 
-# Refuse to write an image whose rootfs has no compositor: nothing in
-# uis/*/packages.list installs sway any more (the fork replaces it), so a rootfs
-# that went through build-rootfs.sh but not install-swayfx.sh boots to a greeter
-# that cannot start a session.
-require_compositor() {
-	local root="$1"
-	[ -x "$root/usr/bin/sway" ] ||
-		die "no compositor in $root (run scripts/install-swayfx.sh)"
-	local se
-	for se in "$root"/usr/lib/*/libscenefx-*.so; do
-		[ -e "$se" ] && return 0
-	done
-	die "the compositor in $root is Debian's plain sway (libscenefx is missing): run scripts/install-swayfx.sh"
-}
+# Kernel metadata (supports both monolithic config.<arch> and arm64-mainline base.config,
+# and degrades cleanly on a booted device without kernel sources).
+if [ -n "${DEVICE_DIR:-}" ] && [ -f "$DEVICE_DIR/kernel" ] && [ -n "${KERNELS_DIR:-}" ]; then
+	KERNEL_FLAVOR="$(tr -d ' \t\r\n' <"$DEVICE_DIR/kernel")"
+	KERNEL_DIR="$KERNELS_DIR/$KERNEL_FLAVOR"
+	[ -d "$KERNEL_DIR" ] || die "kernel flavor '$KERNEL_FLAVOR' (device '$DEVICE') not found in $KERNELS_DIR"
+	KERNEL_VERSION="$(tr -d ' \t\r\n' <"$KERNEL_DIR/version")"
+	KERNEL_PATCH_DIR="$KERNEL_DIR/patches"
+	KERNEL_TARBALL="linux-${KERNEL_VERSION}.tar.xz"
+	KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_VERSION%%.*}.x/${KERNEL_TARBALL}"
+	KERNEL_SRC="$SRC_DIR/linux-$KERNEL_VERSION"
+	KERNEL_CONFIG="$KERNEL_DIR/config.$ARCH"
+	KERNEL_BASE_CONFIG="$KERNEL_DIR/base.config"
+	if [ -f "$KERNEL_CONFIG" ]; then
+		KERNEL_LOCALVERSION="$(sed -n 's/^CONFIG_LOCALVERSION="\(.*\)"$/\1/p' "$KERNEL_CONFIG" | head -n1)"
+	elif [ -f "$KERNEL_BASE_CONFIG" ]; then
+		KERNEL_LOCALVERSION="$(sed -n 's/^CONFIG_LOCALVERSION="\(.*\)"$/\1/p' "$KERNEL_BASE_CONFIG" | head -n1)"
+	else
+		KERNEL_LOCALVERSION=""
+	fi
+	KERNEL_RELEASE="${KERNEL_RELEASE:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
+else
+	KERNEL_FLAVOR="${KERNEL_FLAVOR:-runtime}"
+	KERNEL_DIR=""
+	KERNEL_PATCH_DIR=""
+	KERNEL_TARBALL=""
+	KERNEL_URL=""
+	KERNEL_SRC=""
+	KERNEL_CONFIG=""
+	KERNEL_BASE_CONFIG=""
+	KERNEL_RELEASE="${KERNEL_RELEASE:-$(uname -r)}"
+	KERNEL_VERSION="${KERNEL_VERSION:-${KERNEL_RELEASE%%-*}}"
+	KERNEL_LOCALVERSION="-${KERNEL_RELEASE#*-}"
+fi
 
-# ---------------------------------------------------------------------------
-# Session tools built from source
-# ---------------------------------------------------------------------------
-# workstyle renames every workspace to "<number>: <icons>", one glyph per window
-# in it, so the bar's pills say what is running where. Debian packages no
-# workspace renamer, so tools/workstyle/ pins the crates.io tarball (+ a patch)
-# and scripts/build-workstyle.sh turns it into a .deb under $WORKSTYLE_STAGE.
-# It is the session's only daemon besides cliphist's clipboard watcher.
+# Desktop / UI build variables (optional when running core standalone or live on device).
+COMPOSITOR="${COMPOSITOR:-swayfx}"
 WORKSTYLE="workstyle"
-WORKSTYLE_DIR="$REPO_DIR/tools/$WORKSTYLE"
-[ -d "$WORKSTYLE_DIR" ] || die "session tool '$WORKSTYLE' not found in $REPO_DIR/tools"
-WORKSTYLE_VERSION="$(cat "$WORKSTYLE_DIR/version")"
-WORKSTYLE_STAGE="$WORK_DIR/$WORKSTYLE-stage"
-WORKSTYLE_SRC="$SRC_DIR/$WORKSTYLE-$WORKSTYLE_VERSION"
-WORKSTYLE_TARBALL="$WORKSTYLE-$WORKSTYLE_VERSION.crate"
-WORKSTYLE_URL="https://static.crates.io/crates/$WORKSTYLE/$WORKSTYLE_TARBALL"
-
-# The session's Rust framework (`lazyos`): one multi-call binary that the 64
-# scripts become symlinks to (docs/plan-ui.md §2). Built from the workspace in
-# this repository, so there is nothing to fetch or pin; scripts/build-lazyos.sh
-# stages it and scripts/install-lazyos.sh puts it in /usr/bin.
+OPENCODE="opencode"
 LAZYOS_STAGE="$WORK_DIR/lazyos-stage"
 
-# ---------------------------------------------------------------------------
-# Agents
-# ---------------------------------------------------------------------------
-# The Agents menu (uis/*/files/home/.config/bin/rofi-agents) launches the
-# coding-agent CLIs and installs a missing one with npm into the user's
-# ~/.local. OpenCode is the exception: it ships with the image, because it is the
-# agent this port is built with and a fresh card should not have to fetch it
-# first. tools/opencode/ pins the arm64 tarball of the npm platform package -
-# the compiled binary on its own, so no npm runs at build time - and
-# build-rootfs.sh stages it for rootfs-setup.sh, which installs it into
-# ~/.opencode/bin. That is the layout the binary's own `opencode upgrade`
-# recognises; see tools/opencode/README.md for why it is not a .deb.
-OPENCODE="opencode"
-OPENCODE_DIR="$REPO_DIR/tools/$OPENCODE"
-[ -d "$OPENCODE_DIR" ] || die "agent '$OPENCODE' not found in $REPO_DIR/tools"
-OPENCODE_VERSION="$(cat "$OPENCODE_DIR/version")"
-OPENCODE_TARBALL="$OPENCODE-cli-linux-arm64-$OPENCODE_VERSION.tgz"
-OPENCODE_URL="https://registry.npmjs.org/@opencode/cli-linux-arm64/-/cli-linux-arm64-$OPENCODE_VERSION.tgz"
+if [ -n "${DESKTOP_REPO:-}" ] && [ -d "$DESKTOP_REPO" ]; then
+	COMPOSITOR_DIR="$DESKTOP_REPO/compositors/$COMPOSITOR"
+	if [ -d "$COMPOSITOR_DIR" ]; then
+		COMPOSITOR_VERSION="$(tr -d ' \t\r\n' <"$COMPOSITOR_DIR/version")"
+		SCENEFX_VERSION="$(tr -d ' \t\r\n' <"$COMPOSITOR_DIR/scenefx-version")"
+		COMPOSITOR_STAGE="$WORK_DIR/${COMPOSITOR}-stage"
+		COMPOSITOR_SRC="$SRC_DIR/$COMPOSITOR-$COMPOSITOR_VERSION"
+		SCENEFX_SRC="$SRC_DIR/scenefx-$SCENEFX_VERSION"
+		COMPOSITOR_TARBALL="$COMPOSITOR-$COMPOSITOR_VERSION.tar.gz"
+		SCENEFX_TARBALL="scenefx-$SCENEFX_VERSION.tar.gz"
+		COMPOSITOR_URL="https://github.com/WillPower3309/$COMPOSITOR/archive/refs/tags/$COMPOSITOR_VERSION.tar.gz"
+		SCENEFX_URL="https://github.com/wlrfx/scenefx/archive/refs/tags/$SCENEFX_VERSION.tar.gz"
+	fi
+	WORKSTYLE_DIR="$DESKTOP_REPO/tools/$WORKSTYLE"
+	if [ -d "$WORKSTYLE_DIR" ]; then
+		WORKSTYLE_VERSION="$(tr -d ' \t\r\n' <"$WORKSTYLE_DIR/version")"
+		WORKSTYLE_STAGE="$WORK_DIR/$WORKSTYLE-stage"
+		WORKSTYLE_SRC="$SRC_DIR/$WORKSTYLE-$WORKSTYLE_VERSION"
+		WORKSTYLE_TARBALL="$WORKSTYLE-$WORKSTYLE_VERSION.crate"
+		WORKSTYLE_URL="https://static.crates.io/crates/$WORKSTYLE/$WORKSTYLE_TARBALL"
+	fi
+	OPENCODE_DIR="$DESKTOP_REPO/tools/$OPENCODE"
+	if [ -d "$OPENCODE_DIR" ]; then
+		OPENCODE_VERSION="$(tr -d ' \t\r\n' <"$OPENCODE_DIR/version")"
+		OPENCODE_TARBALL="$OPENCODE-cli-linux-arm64-$OPENCODE_VERSION.tgz"
+		OPENCODE_URL="https://registry.npmjs.org/@opencode/cli-linux-arm64/-/cli-linux-arm64-$OPENCODE_VERSION.tgz"
+	fi
+else
+	COMPOSITOR_DIR=""
+	COMPOSITOR_STAGE="$WORK_DIR/${COMPOSITOR}-stage"
+	WORKSTYLE_DIR=""
+	WORKSTYLE_STAGE="$WORK_DIR/$WORKSTYLE-stage"
+	OPENCODE_DIR=""
+fi
 
-# ---------------------------------------------------------------------------
-# Packaging things built here as .debs
-# ---------------------------------------------------------------------------
-# build_deb <outdir> <tree> <package> <version> <depends> <description> [extra control lines]
-# The tree is the payload as it will land on the target (/usr/...); DEBIAN is
-# created in it. No debian/ directory and no dpkg-buildpackage are involved,
-# because nothing here is built from a Debian source package.
+require_compositor() {
+	[ -n "${COMPOSITOR_DIR:-}" ] && [ -d "$COMPOSITOR_DIR" ] ||
+		die "compositor '$COMPOSITOR' not found (set LAZYOS_DESKTOP_DIR or place lazyos-desktop alongside lazyos-core)"
+}
+
+require_desktop() {
+	[ -n "${DESKTOP_REPO:-}" ] && [ -d "$DESKTOP_REPO" ] ||
+		die "lazyos-desktop checkout not found (set LAZYOS_DESKTOP_DIR or place lazyos-desktop alongside lazyos-core)"
+}
+
+require_devices() {
+	[ -n "${DEVICES_REPO:-}" ] && [ -d "$DEVICES_REPO" ] ||
+		die "lazyos-devices checkout not found (set LAZYOS_DEVICES_DIR or place lazyos-devices alongside lazyos-core)"
+}
+
 build_deb() {
 	local outdir="$1" tree="$2" name="$3" version="$4" depends="$5" desc="$6" extra="${7:-}"
 	local arch size
@@ -244,60 +258,52 @@ deb_depends() {
 # ---------------------------------------------------------------------------
 DEPTHCHARGE_BOARD="${deviceinfo_depthcharge_board:-}"
 DEPTHCHARGE_COMPRESSION="${deviceinfo_depthcharge_compression:-lzma}"
+
+# Bootloader geometry defaults
 KPART_START_SECTORS="${deviceinfo_cgpt_kpart_start:-8192}"
 KPART_SIZE_SECTORS="${deviceinfo_cgpt_kpart_size:-262144}"   # 128 MiB
 KPART_PATH="${deviceinfo_cgpt_kpart:-/boot/vmlinuz.kpart}"
-# The rest of the layout, after the kernel partition: a boot partition and the
-# root filesystem (see scripts/lib-cgpt.sh, which creates and resolves it).
-# Both values mirror Nura/pmbootstrap, which are what already worked on this
-# machine: pmbootstrap's Config.boot_size defaults to 512 MiB (pmb/core/config.py)
-# and the pmaports deviceinfo schema defaults flash.boot_filesystem to ext2.
-# Nura's own eMMC partition table is p1 128 MiB kernel + p2 512 MiB /boot + p3 root.
-BOOT_SIZE_MIB="${BOOT_SIZE_MIB:-512}"
+DEPTHCHARGE_ARCH="${deviceinfo_depthcharge_arch:-arm64}"
+DEPTHCHARGE_BOARD="${deviceinfo_depthcharge_board:-mt8192}"
+DEPTHCHARGE_COMPRESSION="${deviceinfo_depthcharge_compression:-lzma}"
+DTB_GLOB="${deviceinfo_dtb:-}"
+BOOT_SIZE_MIB="${BOOT_SIZE_MIB:-${deviceinfo_boot_size_mib:-512}}"
 BOOT_FS="${BOOT_FS:-ext2}"
 
-# ---------------------------------------------------------------------------
-# Debian target
-# ---------------------------------------------------------------------------
+# Debian debootstrap / image settings
 DEBIAN_SUITE="${DEBIAN_SUITE:-forky}"
-# Map the deviceinfo arch (distro/Alpine style, e.g. aarch64) to the Debian
-# architecture name (e.g. arm64). debootstrap requires the latter.
-case "$DEVICE_ARCH" in
-	aarch64 | arm64) _debian_arch=arm64 ;;
-	armv7 | arm) _debian_arch=armhf ;;
-	i686 | x86) _debian_arch=i386 ;;
-	x86_64 | amd64) _debian_arch=amd64 ;;
-	*) _debian_arch="$DEVICE_ARCH" ;;
+case "$ARCH" in
+	aarch64) _debian_arch="arm64" ;;
+	x86_64)  _debian_arch="amd64" ;;
+	*)       _debian_arch="$ARCH" ;;
 esac
 DEBIAN_ARCH="${DEBIAN_ARCH:-$_debian_arch}"
 DEBIAN_MIRROR="${DEBIAN_MIRROR:-http://deb.debian.org/debian}"
 DEBIAN_COMPONENTS="${DEBIAN_COMPONENTS:-main contrib non-free non-free-firmware}"
-
-# NetworkManager Wi-Fi profiles exported from the running system (scripts/wifi.sh).
-# They contain the PSK, so they deliberately live outside the repository.
-WIFI_DIR="${WIFI_DIR:-$BUILD_ROOT/wifi}"
-
-# Locale and timezone of the built image.  Both are baked into the rootfs, not
-# into the kernel, so they are ordinary build inputs:
-#   LOCALE=en_US.UTF-8 scripts/build-rootfs.sh
-#   TIMEZONE=UTC scripts/build-rootfs.sh
-# The locale must be an entry of /etc/locale.gen (Debian ships every entry
-# commented out; rootfs-setup.sh uncomments and generates the requested one),
-# the timezone a name under /usr/share/zoneinfo (e.g. UTC, Europe/Madrid).
+ROOTFS="${ROOTFS:-$WORK_DIR/rootfs-$DEVICE-$UI}"
 LOCALE="${LOCALE:-en_US.UTF-8}"
 TIMEZONE="${TIMEZONE:-America/Mexico_City}"
 
-# ---------------------------------------------------------------------------
-# Build directories
-# ---------------------------------------------------------------------------
-ROOTFS="${ROOTFS:-$WORK_DIR/rootfs-$DEVICE}"
 KERNEL_STAGE="${KERNEL_STAGE:-$WORK_DIR/kernel-stage-$KERNEL_FLAVOR}"
 KPART="${KPART:-$WORK_DIR/$DEVICE.vmlinuz.kpart}"
 
-export REPO_DIR BUILD_ROOT WORK_DIR SRC_DIR DEVICE DEVICE_DIR KERNEL_DIR
-export UI UIS_DIR UI_DIR WIFI_DIR
+_boot_build_cmdline() {
+	local rootfs="${1:-/}" extra="${2:-}" base=""
+	if [ -r "$rootfs/etc/lazyos/kernel-cmdline.conf" ]; then
+		base="$(grep -v '^[[:space:]]*#' "$rootfs/etc/lazyos/kernel-cmdline.conf" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g;s/^ //;s/ $//')"
+	elif [ -n "${KERNEL_CMDLINE:-}" ]; then
+		base="$(printf '%s' "$KERNEL_CMDLINE" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g;s/^ //;s/ $//')"
+	fi
+	printf '%s\n' "${base}${extra:+ $extra}" | sed 's/^ //;s/ $//'
+}
+
+export CORE_DIR REPO_DIR DEVICES_REPO DESKTOP_REPO
+export BUILD_ROOT WORK_DIR SRC_DIR ROOTFS
+export DEVICE DEVICE_DIR DEVICES_DIR KERNELS_DIR KERNEL_DIR
+export KERNEL_FLAVOR KERNEL_VERSION KERNEL_RELEASE KERNEL_STAGE KERNEL_ARCH KPART
+export BOOT_TYPE BOOT_BACKEND BOOT_SIZE_MIB BOOT_FS
+export UI UIS_DIR UI_DIR PACKAGES_DIR WIFI_DIR
+export COMPOSITOR COMPOSITOR_DIR COMPOSITOR_VERSION COMPOSITOR_STAGE
 export WORKSTYLE WORKSTYLE_DIR WORKSTYLE_VERSION WORKSTYLE_STAGE
-export LAZYOS_STAGE
-export OPENCODE OPENCODE_DIR OPENCODE_VERSION OPENCODE_TARBALL OPENCODE_URL
-export LOCALE TIMEZONE
-export BOOT_SIZE_MIB BOOT_FS KERNEL_RELEASE
+export LAZYOS_STAGE OPENCODE OPENCODE_DIR OPENCODE_VERSION OPENCODE_TARBALL OPENCODE_URL
+export DEBIAN_SUITE DEBIAN_ARCH DEBIAN_MIRROR DEBIAN_COMPONENTS LOCALE TIMEZONE

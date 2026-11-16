@@ -10,12 +10,15 @@
 # Usage: write-sd.sh [DEVICE]     (default: /dev/mmcblk1)
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
-. "$(dirname "$0")/lib-cgpt.sh"
+. "$BOOT_BACKEND"
 
 BLOCK="${1:-/dev/mmcblk1}"
 
 if [ "$(id -u)" -ne 0 ]; then
-	exec sudo -n DEVICE="$DEVICE" KERNEL_CMDLINE_OVERRIDE="${KERNEL_CMDLINE_OVERRIDE:-}" "$(readlink -f "$0")" "${1:-}"
+	exec sudo -n DEVICE="$DEVICE" KERNEL_CMDLINE_OVERRIDE="${KERNEL_CMDLINE_OVERRIDE:-}" \
+		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
+		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		"$(readlink -f "$0")" "${1:-}"
 fi
 
 [ -b "$BLOCK" ] || die "not a block device: $BLOCK"
@@ -32,14 +35,13 @@ case "$ROOT_SRC" in
 esac
 
 log "Device: $DEVICE -> $BLOCK ($(blockdev --getsize64 "$BLOCK") bytes)"
-disk_release "$BLOCK"
+boot_release "$BLOCK"
 
-log "Creating ChromeOS GPT on $BLOCK (kernel $((KPART_SIZE_SECTORS * 512 / 1024 / 1024)) MiB, boot ${BOOT_SIZE_MIB} MiB)"
-disk_layout_create "$BLOCK"
-disk_layout_parts "$BLOCK"
+log "Creating $BOOT_TYPE partition layout on $BLOCK"
+boot_layout_create "$BLOCK"
 
 MNT="$WORK_DIR/sd-mnt-$DEVICE"
-disk_layout_mount "$BLOCK" "$MNT"
+boot_layout_mount "$BLOCK" "$MNT"
 
 log "Copying root filesystem"
 # A leftover mount under the rootfs (a chroot /proc or /sys someone forgot to
@@ -50,17 +52,11 @@ _stale_mounts="$(findmnt -rn -o TARGET 2>/dev/null | grep -F "$ROOTFS/" || true)
 [ -z "$_stale_mounts" ] ||
 	die "something is mounted under $ROOTFS ($_stale_mounts); unmount it first"
 rsync -aHAX --delete "$ROOTFS"/ "$MNT"/
-disk_layout_fstab "$MNT"
+boot_write_fstab "$MNT"
 
-log "Building kpart (root=UUID=$ROOT_UUID)"
-"$REPO_DIR/scripts/make-kpart.sh" "$MNT" "$KPART" "root=UUID=$ROOT_UUID rootwait rw"
-kpart_fits "$KPART" "$KPART_PART"
-kpart_verify "$KPART"
-
-log "Writing kpart to $KPART_PART"
-dd if="$KPART" of="$KPART_PART" bs=1M conv=fsync
-sync
-disk_layout_umount "$MNT"
+log "Installing $BOOT_TYPE boot target (root=UUID=$ROOT_UUID)"
+boot_install "$MNT" "$BLOCK" "root=UUID=$ROOT_UUID rootwait rw"
+boot_layout_umount "$MNT"
 
 log "Done. Remove $BLOCK, insert it and pick the external disk in the firmware menu."
 cgpt show "$BLOCK" || true
