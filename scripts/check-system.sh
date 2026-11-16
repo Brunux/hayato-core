@@ -986,10 +986,20 @@ if [ -r /etc/greetd/config.toml ]; then
 		fail "greeter vt = ${_vt:-unset} (must be 7: greetd conflicts with getty@tty7)"
 	getent passwd "$_user" >/dev/null 2>&1 && ok "greeter user $_user exists" ||
 		fail "greeter user '${_user:-unset}' does not exist: greetd exits and the greeter never shows"
+	grep -qs 'lazyos-greeter' /etc/greetd/config.toml 2>/dev/null &&
+		ok "greetd invokes native lazyos-greeter" ||
+		warn "/etc/greetd/config.toml does not invoke lazyos-greeter yet"
 else
 	fail "/etc/greetd/config.toml is missing"
 fi
-have tuigreet && ok "tuigreet is installed" || warn "tuigreet is not installed"
+if have lazyos-greeter; then
+	ok "lazyos-greeter is installed"
+	lazyos-greeter --check >/dev/null 2>&1 &&
+		ok "lazyos-greeter --check passes" ||
+		fail "lazyos-greeter --check failed"
+else
+	fail "lazyos-greeter is not installed (run scripts/build-lazyos.sh && scripts/install-lazyos.sh)"
+fi
 # greetd hands the session only the PAM environment, so pam_env is what puts the
 # locale there; without it every terminal warns "'C' is not a UTF-8 locale" and
 # sorting/matching run on the C locale.
@@ -4386,9 +4396,12 @@ fi
 
 # The greeter and the virtual terminals are the first and the cheapest surfaces
 # a person sees, and both are files a later edit can quietly lose.
-grep -qs 'lazy by design' /etc/greetd/config.toml 2>/dev/null &&
-	ok "the greeter greets with lazy by design" ||
-	warn "the greeter no longer greets with lazy by design"
+if grep -qsE 'lazyos-greeter|lazy by design' /etc/greetd/config.toml 2>/dev/null ||
+	grep -qs 'lazy by design' /etc/lazyos/greeter.toml 2>/dev/null; then
+	ok "the greeter is configured for LazyOS"
+else
+	warn "the greeter configuration lost lazyos-greeter / branding"
+fi
 grep -qs 'LazyOS' /etc/issue 2>/dev/null &&
 	ok "virtual terminals greet LazyOS" ||
 	warn "/etc/issue does not name LazyOS"
