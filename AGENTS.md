@@ -32,9 +32,12 @@ Selected via `deviceinfo_boot_type` (`depthcharge` default, `uefi`, or `extlinux
 - `boot_install <rootfs> <disk_or_out> [cmdline_extra]`
 - `boot_update_running [args...]`
 
-All `rsync -aHAX --delete` syncs into a `boot_layout_mount` target must pass `--exclude=/boot/efi`
+All `rsync -aHAX --delete` syncs into a `boot_layout_mount` target must exclude `/boot/efi`
 so a mounted FAT32 ESP (`uefi`) is neither deleted (`EBUSY`) nor synced with POSIX metadata;
-`boot_install` populates `/boot/efi` afterward.
+image/SD syncs (`sync_rootfs_to_mount` in `lib.sh`) sync `/` (`--exclude=/boot`) and `/boot/`
+(`--exclude=/efi`) in two passes so Debian kernel hard links spanning `/` and a separate `/boot`
+partition (`extlinux`/`depthcharge`) never trigger `EXDEV`, and `boot_install` populates `/boot` or
+`/boot/efi` afterward.
 
 Keep `lib-cgpt.sh` / ChromeOS GPT safeguards intact inside `boot/depthcharge.sh`: always resolve
 partitions by `PARTN` + `PARTLABEL`, refuse mounted targets via `findmnt -rn -S`, require stopping

@@ -327,6 +327,24 @@ _boot_build_cmdline() {
 	printf '%s\n' "${base}${extra:+ $extra}" | sed 's/^ //;s/ $//'
 }
 
+# Sync <src_rootfs> onto <dst_mnt> (mounted by boot_layout_mount) in two passes
+# so cross-filesystem hard links (e.g. Debian kernel /boot <-> /usr/lib/modules)
+# never trigger EXDEV under `rsync -H`, and a mounted FAT32 ESP at /boot/efi is untouched.
+sync_rootfs_to_mount() {
+	local src="${1%/}" dst="${2%/}" excl_file="${3:-}"
+	local _stale_mounts
+	_stale_mounts="$(findmnt -rn -o TARGET 2>/dev/null | grep -F "$src/" || true)"
+	[ -z "$_stale_mounts" ] ||
+		die "something is mounted under $src ($_stale_mounts); unmount it first"
+
+	local -a root_args=(-aHAX --delete --exclude=/boot)
+	[ -n "$excl_file" ] && root_args+=(--exclude-from="$excl_file")
+	rsync "${root_args[@]}" "$src"/ "$dst"/
+
+	mkdir -p "$dst/boot"
+	rsync -aHAX --delete --exclude=/efi "$src/boot"/ "$dst/boot"/
+}
+
 export CORE_DIR REPO_DIR DEVICES_REPO DESKTOP_REPO
 export ARCH DEVICE_ARCH BUILD_ROOT WORK_DIR SRC_DIR ROOTFS
 export DEVICE DEVICE_DIR DEVICES_DIR KERNELS_DIR KERNEL_DIR

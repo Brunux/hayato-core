@@ -55,14 +55,7 @@ MNT="$WORK_DIR/sd-mnt-$DEVICE"
 boot_layout_mount "$BLOCK" "$MNT"
 
 log "Copying root filesystem"
-# A leftover mount under the rootfs (a chroot /proc or /sys someone forgot to
-# unmount) is never wanted: rsync would copy the live host's pseudo-filesystems
-# and fail on their unreadable entries - which is exactly what aborted a card
-# write once - and on a slower medium it could write some of them first.
-_stale_mounts="$(findmnt -rn -o TARGET 2>/dev/null | grep -F "$ROOTFS/" || true)"
-[ -z "$_stale_mounts" ] ||
-	die "something is mounted under $ROOTFS ($_stale_mounts); unmount it first"
-rsync -aHAX --delete --exclude=/boot/efi "$ROOTFS"/ "$MNT"/
+sync_rootfs_to_mount "$ROOTFS" "$MNT"
 boot_write_fstab "$MNT"
 
 log "Installing $BOOT_TYPE boot target (root=UUID=$ROOT_UUID)"
