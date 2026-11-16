@@ -1625,6 +1625,14 @@ else
 	fi
 fi
 
+if [ -r "$HOME/.config/foot/foot.ini" ]; then
+	if grep -rqsE '^[[:space:]]*selection-target[[:space:]]*=[[:space:]]*(both|clipboard)' "$HOME/.config/foot/foot.ini"; then
+		ok "foot automatically copies selection to clipboard (selection-target=both)"
+	else
+		fail "foot does not auto-copy selection: selection-target=both is missing from $HOME/.config/foot/foot.ini"
+	fi
+fi
+
 # Non-Latin coverage in one question.  A file name, a web page or an EPUB in
 # Arabic is a row of boxes when no installed font claims the script, and nothing
 # logs it.  fonts-noto-core is the package that answers for Arabic, Hebrew,
@@ -3808,6 +3816,48 @@ if have lazyos; then
 		ok "lazyos menu places --rows prints places table (spec 017)"
 	else
 		fail "lazyos menu places --rows failed (spec 017)"
+	fi
+
+	# Spec 020: frictionless, self-contained in-window UX & live window sizing.
+	# Interactive TUI modules in lazyos-cli must never call Card::send() or
+	# external `notify-send` while a TUI window is open, and `lazyos --glyphs`
+	# must include the half-block QR codepoints (U+2580, U+2584).
+	if [ -n "$REPO" ] && [ -d "$REPO/rust/crates/lazyos-cli/src/system" ]; then
+		_s020_toasts=$(grep -rnE '\.send\(|notify-send' \
+			"$REPO/rust/crates/lazyos-cli/src/system/" \
+			--exclude='dictate.rs' --exclude='translate.rs' \
+			--exclude='capture.rs' --exclude='colour.rs' \
+			--exclude='remind.rs' --exclude='notify.rs' \
+			--exclude='mod.rs' 2>/dev/null || true)
+		if [ -z "$_s020_toasts" ]; then
+			ok "interactive TUI surfaces own their progress without external toasts (spec 020)"
+		else
+			fail "interactive TUI surface still triggers external toast (spec 020): $(tr '\n' ' ' <<<"$_s020_toasts")"
+		fi
+	fi
+	_s020_glyphs=$(lazyos --glyphs 2>/dev/null || true)
+	if grep -q '^U+2580' <<<"$_s020_glyphs" && grep -q '^U+2584' <<<"$_s020_glyphs"; then
+		ok "lazyos --glyphs declares half-block QR codepoints U+2580/U+2584 (spec 020)"
+	else
+		fail "lazyos --glyphs missing half-block QR codepoints U+2580/U+2584 (spec 020)"
+	fi
+	if [ -n "$REPO" ] && [ -d "$REPO/rust/crates/lazyos-cli/src/system" ]; then
+		_s020_strip_missing=""
+		for _m in net bluetooth clean colour audio kill remind notify clip learn about; do
+			grep -q 'ActionStrip' "$REPO/rust/crates/lazyos-cli/src/system/$_m.rs" 2>/dev/null ||
+				_s020_strip_missing="$_s020_strip_missing $_m"
+		done
+		if [ -z "$_s020_strip_missing" ]; then
+			ok "all 11 action+list menus separate tool actions into ActionStrip (spec 020)"
+		else
+			fail "menus missing ActionStrip action/result separation (spec 020):$_s020_strip_missing"
+		fi
+		if grep -q 'save_qr_png' "$REPO/rust/crates/lazyos-cli/src/system/qr.rs" 2>/dev/null &&
+			grep -q -- '--action=stop=Stop & Transcribe' "$REPO/rust/crates/lazyos-cli/src/system/dictate.rs" 2>/dev/null; then
+			ok "QR PNG saving and dictation push-to-talk/notification actions present (spec 020)"
+		else
+			fail "missing QR PNG saving or dictation notification actions (spec 020)"
+		fi
 	fi
 
 	# Spec 012 moved the three rofi modes onto the framework.  The bindings read
