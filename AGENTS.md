@@ -53,5 +53,5 @@ partitions by `PARTN` + `PARTLABEL`, refuse mounted targets via `findmnt -rn -S`
 
 ## Release Sanitization (`lib-dist.sh` & `make-release.sh`)
 - `make-release.sh` must strip host secrets, Wi-Fi PSKs, SSH host keys, `machine-id`, and build caches
-  via `lib-dist.sh` before producing `.img.xz` / `rootfs.tar.zst` (plus `.vmlinuz.kpart` when
-  `BOOT_TYPE=depthcharge`). Keep `core/VERSION` synced with `desktop/VERSION` on releases.
+  via `lib-dist.sh` before producing the sanitized `<device>.img.xz` release image and `SHA256SUMS`.
+  Keep `core/VERSION` synced with `desktop/VERSION` on releases.
