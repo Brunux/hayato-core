@@ -997,6 +997,9 @@ if have lazyos-greeter; then
 	lazyos-greeter --check >/dev/null 2>&1 &&
 		ok "lazyos-greeter --check passes" ||
 		fail "lazyos-greeter --check failed"
+	printf '%s\n' "$SETTINGS_ROWS" | grep -q '^greeter	' &&
+		ok "Settings exposes Login screen (Greeter) defaults" ||
+		fail "Settings (lazyos menu settings) lost the 'greeter' row: greeter defaults are unreachable"
 else
 	fail "lazyos-greeter is not installed (run scripts/build-lazyos.sh && scripts/install-lazyos.sh)"
 fi
