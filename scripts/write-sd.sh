@@ -62,7 +62,7 @@ log "Copying root filesystem"
 _stale_mounts="$(findmnt -rn -o TARGET 2>/dev/null | grep -F "$ROOTFS/" || true)"
 [ -z "$_stale_mounts" ] ||
 	die "something is mounted under $ROOTFS ($_stale_mounts); unmount it first"
-rsync -aHAX --delete "$ROOTFS"/ "$MNT"/
+rsync -aHAX --delete --exclude=/boot/efi "$ROOTFS"/ "$MNT"/
 boot_write_fstab "$MNT"
 
 log "Installing $BOOT_TYPE boot target (root=UUID=$ROOT_UUID)"

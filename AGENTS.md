@@ -32,6 +32,10 @@ Selected via `deviceinfo_boot_type` (`depthcharge` default, `uefi`, or `extlinux
 - `boot_install <rootfs> <disk_or_out> [cmdline_extra]`
 - `boot_update_running [args...]`
 
+All `rsync -aHAX --delete` syncs into a `boot_layout_mount` target must pass `--exclude=/boot/efi`
+so a mounted FAT32 ESP (`uefi`) is neither deleted (`EBUSY`) nor synced with POSIX metadata;
+`boot_install` populates `/boot/efi` afterward.
+
 Keep `lib-cgpt.sh` / ChromeOS GPT safeguards intact inside `boot/depthcharge.sh`: always resolve
 partitions by `PARTN` + `PARTLABEL`, refuse mounted targets via `findmnt -rn -S`, require stopping
 `udisks2`, and never use `cgpt create -z`.

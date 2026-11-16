@@ -39,8 +39,11 @@
 #    generates the ones it is missing.
 
 # rsync patterns, anchored at the transfer root. Also excludes the build
-# leftovers that would otherwise be deleted after being copied (see above).
+# leftovers that would otherwise be deleted after being copied (see above) and
+# /boot/efi (FAT32 ESP mounted by boot/uefi.sh before rsync and populated by
+# boot_install afterward).
 DIST_EXCLUDES='
+/boot/efi
 /etc/NetworkManager/system-connections/
 /var/lib/NetworkManager/
 /etc/ssh/ssh_host_*

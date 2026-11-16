@@ -53,6 +53,7 @@ boot_layout_mount "$BLOCK" "$MNT"
 # eMMC does not inherit the card's journal, caches and temporary files.
 log "Copying the running system to $MNT"
 rsync -aHAX --delete \
+	--exclude=/boot/efi \
 	--exclude=/proc --exclude=/sys --exclude=/dev --exclude=/run \
 	--exclude=/mnt --exclude=/media --exclude="$MNT" --exclude="$WORK_DIR" \
 	--exclude=/tmp/* --exclude=/var/tmp/* \
