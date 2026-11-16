@@ -236,15 +236,11 @@ cat >/etc/tmpfiles.d/mglru.conf <<'EOF'
 w /sys/kernel/mm/lru_gen/min_ttl_ms - - - - 1000
 EOF
 
-# I/O scheduler: kyber, which is built for flash (low latency under mixed load)
-# instead of the kernel's default mq-deadline. Both are compiled in, so this is a
-# runtime choice; see docs/optimization.md.
+# I/O scheduler: kyber for flash/NVMe storage (low latency under mixed load).
+# Matches whole non-rotational block devices only (not partitions like mmcblk0p1 or nvme0n1p1).
 install -d /etc/udev/rules.d
 cat >/etc/udev/rules.d/60-io-scheduler.rules <<'EOF'
-# eMMC and microSD: kyber (CONFIG_MQ_IOSCHED_KYBER is built in). The match is the
-# whole device only - "mmcblk[0-9]*" would also match mmcblk0p1 and friends, and
-# a partition has no scheduler to set.
-ACTION=="add|change", KERNEL=="mmcblk[0-9]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="kyber"
+ACTION=="add|change", KERNEL=="mmcblk[0-9]|nvme[0-9]*n[0-9]*|sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="kyber"
 EOF
 
 # Storage IRQ balancing: route MMC interrupts away from CPU0 (Cortex-A55) so the
@@ -270,6 +266,34 @@ if [ -d /tmp/lazyos-runtime ]; then
 	chmod 755 /usr/libexec/lazyos/boot/*.sh 2>/dev/null || true
 	chmod 755 /usr/libexec/lazyos/check/*.sh 2>/dev/null || true
 	ln -sfn /usr/libexec/lazyos/check-system.sh /usr/local/sbin/check-system.sh
+fi
+
+_boot_type="${BOOT_TYPE:-}"
+if [ -z "$_boot_type" ] && [ -r /etc/lazyos/deviceinfo ]; then
+	_boot_type="$(sed -n 's/^deviceinfo_boot_type="\([^"]*\)"$/\1/p' /etc/lazyos/deviceinfo | head -n1)"
+fi
+if [ "${_boot_type:-depthcharge}" != "depthcharge" ]; then
+	install -d /etc/kernel/postinst.d
+	cat >/etc/kernel/postinst.d/zz-lazyos-boot <<'EOF'
+#!/bin/sh
+# Sync Debian-packaged DTBs and refresh systemd-boot / extlinux after apt kernel upgrades.
+set -eu
+ver="${1:-}"
+if [ -n "$ver" ] && [ -d "/usr/lib/linux-image-$ver" ]; then
+	rm -rf /boot/dtbs
+	mkdir -p /boot/dtbs
+	cp -a "/usr/lib/linux-image-$ver/." /boot/dtbs/
+fi
+_root_id="$(stat -Lc %d:%i / 2>/dev/null || true)"
+_pid1_id="$(stat -Lc %d:%i /proc/1/root 2>/dev/null || true)"
+if [ -n "$_root_id" ] && [ -n "$_pid1_id" ] && [ "$_root_id" != "$_pid1_id" ]; then
+	exit 0
+fi
+if [ -x /usr/libexec/lazyos/install-boot.sh ] && findmnt -n -o UUID / >/dev/null 2>&1; then
+	CONFIRM=yes /usr/libexec/lazyos/install-boot.sh
+fi
+EOF
+	chmod 0755 /etc/kernel/postinst.d/zz-lazyos-boot
 fi
 
 log "Enabling services"

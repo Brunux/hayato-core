@@ -46,6 +46,8 @@ DIST_EXCLUDES='
 /etc/ssh/ssh_host_*
 /etc/machine-id
 /var/lib/dbus/machine-id
+/etc/lazyos/installation
+/var/lib/lazyos/greeter/state.toml
 /root/.ssh/
 /home/*/.cache/debian-aarch64/
 /home/*/.local/share/opencode/
@@ -87,6 +89,8 @@ dist_sanitize() {
 	rm -f "$_d"/etc/ssh/ssh_host_*
 	: >"$_d/etc/machine-id"
 	rm -f "$_d/var/lib/dbus/machine-id"
+	rm -f "$_d/etc/lazyos/installation"
+	rm -f "$_d/var/lib/lazyos/greeter/state.toml"
 
 	rm -rf "$_d/root/.ssh"
 	rm -rf "${_d:?}"/var/log/journal/*
@@ -106,6 +110,9 @@ dist_assert_clean() {
 	fi
 	if [ -e "$_d/var/lib/dbus/machine-id" ]; then
 		_bad="$_bad$_d/var/lib/dbus/machine-id"
+	fi
+	if [ -e "$_d/etc/lazyos/installation" ]; then
+		_bad="$_bad$_d/etc/lazyos/installation"
 	fi
 	if find "$_d/root/.ssh" "$_d"/home/*/.cache/debian-aarch64 -mindepth 1 -print -quit 2>/dev/null | grep -q .; then
 		_bad="$_bad$_d/root/.ssh or $_d/home/*/.cache/debian-aarch64 (not empty)"

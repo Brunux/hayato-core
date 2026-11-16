@@ -29,17 +29,19 @@ set -euo pipefail
 . "$(dirname "$0")/lib-dist.sh"
 
 IMG="${1:-$WORK_DIR/$DEVICE.img}"
-SIZE_MIB="${2:-${IMAGE_SIZE_MIB:-4096}}"
+SIZE_MIB="${2:-${IMAGE_SIZE_MIB:-6144}}"
 KPART_IMG="$WORK_DIR/kpart-image-$DEVICE.img"
 
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" \
+		KERNEL_SOURCE_TYPE="${KERNEL_SOURCE_TYPE:-source}" KERNEL_RELEASE="${KERNEL_RELEASE:-}" \
 		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
 		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "$IMG" "$SIZE_MIB"
 fi
 
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"
+resolve_kernel_release "$ROOTFS"
 [ -f "$ROOTFS/boot/vmlinuz-$KERNEL_RELEASE" ] ||
 	die "the rootfs has no /boot/vmlinuz-$KERNEL_RELEASE: run install-kernel.sh first"
 [ -z "${DESKTOP_REPO:-}" ] || require_compositor

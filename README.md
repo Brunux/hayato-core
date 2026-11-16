@@ -15,5 +15,6 @@ installer, backup/restore, release imaging, and core system diagnostics for
   core/desktop/device package lists and overlays, and installs `/usr/libexec/lazyos/`.
 - `scripts/check-system.sh` & `scripts/check-core.sh` — Runs `10-core.sh` + optional `20-device.sh`
   and `30-desktop.sh` hardware/desktop witnesses.
-- `scripts/write-sd.sh`, `scripts/install-emmc.sh`, `scripts/make-image.sh`, `scripts/make-release.sh`
-  — Disk layout, installation, and sanitized release artifact builders.
+- `scripts/write-sd.sh`, `scripts/install-boot.sh`, `scripts/make-image.sh`, `scripts/make-release.sh`
+  — Disk layout, bootloader updates, and sanitized release artifact builders (`scripts/install-emmc.sh`
+  remains kept intact as the legacy Hayato manual/debug fallback for pure-Rust `lazyos installer`).

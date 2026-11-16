@@ -107,21 +107,37 @@ if [ -n "${DEVICE_DIR:-}" ] && [ -f "$DEVICE_DIR/kernel" ] && [ -n "${KERNELS_DI
 	[ -d "$KERNEL_DIR" ] || die "kernel flavor '$KERNEL_FLAVOR' (device '$DEVICE') not found in $KERNELS_DIR"
 	KERNEL_VERSION="$(tr -d ' \t\r\n' <"$KERNEL_DIR/version")"
 	KERNEL_PATCH_DIR="$KERNEL_DIR/patches"
-	KERNEL_TARBALL="linux-${KERNEL_VERSION}.tar.xz"
-	KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_VERSION%%.*}.x/${KERNEL_TARBALL}"
-	KERNEL_SRC="$SRC_DIR/linux-$KERNEL_VERSION"
-	KERNEL_CONFIG="$KERNEL_DIR/config.$ARCH"
-	KERNEL_BASE_CONFIG="$KERNEL_DIR/base.config"
-	if [ -f "$KERNEL_CONFIG" ]; then
-		KERNEL_LOCALVERSION="$(sed -n 's/^CONFIG_LOCALVERSION="\(.*\)"$/\1/p' "$KERNEL_CONFIG" | head -n1)"
-	elif [ -f "$KERNEL_BASE_CONFIG" ]; then
-		KERNEL_LOCALVERSION="$(sed -n 's/^CONFIG_LOCALVERSION="\(.*\)"$/\1/p' "$KERNEL_BASE_CONFIG" | head -n1)"
-	else
+	if [ -f "$KERNEL_DIR/package" ]; then
+		KERNEL_SOURCE_TYPE="debian-pkg"
+		KERNEL_PACKAGE="$(tr -d ' \t\r\n' <"$KERNEL_DIR/package")"
+		KERNEL_TARBALL=""
+		KERNEL_URL=""
+		KERNEL_SRC=""
+		KERNEL_CONFIG=""
+		KERNEL_BASE_CONFIG=""
 		KERNEL_LOCALVERSION=""
+		KERNEL_RELEASE="${KERNEL_RELEASE:-debian-pkg}"
+	else
+		KERNEL_SOURCE_TYPE="source"
+		KERNEL_PACKAGE=""
+		KERNEL_TARBALL="linux-${KERNEL_VERSION}.tar.xz"
+		KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_VERSION%%.*}.x/${KERNEL_TARBALL}"
+		KERNEL_SRC="$SRC_DIR/linux-$KERNEL_VERSION"
+		KERNEL_CONFIG="$KERNEL_DIR/config.$ARCH"
+		KERNEL_BASE_CONFIG="$KERNEL_DIR/base.config"
+		if [ -f "$KERNEL_CONFIG" ]; then
+			KERNEL_LOCALVERSION="$(sed -n 's/^CONFIG_LOCALVERSION="\(.*\)"$/\1/p' "$KERNEL_CONFIG" | head -n1)"
+		elif [ -f "$KERNEL_BASE_CONFIG" ]; then
+			KERNEL_LOCALVERSION="$(sed -n 's/^CONFIG_LOCALVERSION="\(.*\)"$/\1/p' "$KERNEL_BASE_CONFIG" | head -n1)"
+		else
+			KERNEL_LOCALVERSION=""
+		fi
+		KERNEL_RELEASE="${KERNEL_RELEASE:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
 	fi
-	KERNEL_RELEASE="${KERNEL_RELEASE:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
 else
 	KERNEL_FLAVOR="${KERNEL_FLAVOR:-runtime}"
+	KERNEL_SOURCE_TYPE="${KERNEL_SOURCE_TYPE:-source}"
+	KERNEL_PACKAGE=""
 	KERNEL_DIR=""
 	KERNEL_PATCH_DIR=""
 	KERNEL_TARBALL=""
@@ -133,6 +149,18 @@ else
 	KERNEL_VERSION="${KERNEL_VERSION:-${KERNEL_RELEASE%%-*}}"
 	KERNEL_LOCALVERSION="-${KERNEL_RELEASE#*-}"
 fi
+
+# Resolve actual installed kernel release inside <rootfs> for debian-pkg kernels.
+resolve_kernel_release() {
+	local rootfs="${1:-/}"
+	if [ "${KERNEL_SOURCE_TYPE:-source}" = "debian-pkg" ] || [ "${KERNEL_RELEASE:-}" = "debian-pkg" ]; then
+		local resolved
+		resolved="$(find "$rootfs/lib/modules" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null | sort -V | tail -n1)"
+		[ -n "$resolved" ] || die "no installed kernel modules found in $rootfs/lib/modules"
+		KERNEL_RELEASE="$resolved"
+		export KERNEL_RELEASE
+	fi
+}
 
 # Desktop / UI build variables (optional when running core standalone or live on device).
 COMPOSITOR="${COMPOSITOR:-swayfx}"
@@ -268,7 +296,8 @@ DEPTHCHARGE_BOARD="${deviceinfo_depthcharge_board:-mt8192}"
 DEPTHCHARGE_COMPRESSION="${deviceinfo_depthcharge_compression:-lzma}"
 DTB_GLOB="${deviceinfo_dtb:-}"
 BOOT_SIZE_MIB="${BOOT_SIZE_MIB:-${deviceinfo_boot_size_mib:-512}}"
-BOOT_FS="${BOOT_FS:-ext2}"
+BOOT_FS="${BOOT_FS:-${deviceinfo_boot_filesystem:-ext2}}"
+IMAGE_SIZE_MIB="${IMAGE_SIZE_MIB:-${deviceinfo_image_size_mib:-6144}}"
 
 # Debian debootstrap / image settings
 DEBIAN_SUITE="${DEBIAN_SUITE:-forky}"
@@ -300,8 +329,8 @@ _boot_build_cmdline() {
 export CORE_DIR REPO_DIR DEVICES_REPO DESKTOP_REPO
 export BUILD_ROOT WORK_DIR SRC_DIR ROOTFS
 export DEVICE DEVICE_DIR DEVICES_DIR KERNELS_DIR KERNEL_DIR
-export KERNEL_FLAVOR KERNEL_VERSION KERNEL_RELEASE KERNEL_STAGE KERNEL_ARCH KPART
-export BOOT_TYPE BOOT_BACKEND BOOT_SIZE_MIB BOOT_FS
+export KERNEL_FLAVOR KERNEL_SOURCE_TYPE KERNEL_PACKAGE KERNEL_VERSION KERNEL_RELEASE KERNEL_STAGE KERNEL_ARCH KPART
+export BOOT_TYPE BOOT_BACKEND BOOT_SIZE_MIB BOOT_FS IMAGE_SIZE_MIB DTB_GLOB
 export UI UIS_DIR UI_DIR PACKAGES_DIR WIFI_DIR
 export COMPOSITOR COMPOSITOR_DIR COMPOSITOR_VERSION COMPOSITOR_STAGE
 export WORKSTYLE WORKSTYLE_DIR WORKSTYLE_VERSION WORKSTYLE_STAGE

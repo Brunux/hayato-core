@@ -107,6 +107,9 @@ boot_install() {
 			mkdir -p "$esp/lazyos/dtbs/$(dirname "$dtb_rel")"
 			cp "$dtb_match" "$esp/lazyos/dtbs/$dtb_rel"
 		fi
+	elif [ -z "${deviceinfo_dtb:-}" ] && [ -d "$rootfs/boot/dtbs" ]; then
+		mkdir -p "$esp/dtb"
+		cp -a "$rootfs/boot/dtbs/." "$esp/dtb/"
 	fi
 
 	cat >"$esp/loader/loader.conf" <<'EOF'
@@ -122,7 +125,7 @@ EOF
 		printf 'options %s\n' "$cmdline"
 	} >"$esp/loader/entries/lazyos.conf"
 
-	local efi_stub
+	local efi_stub efi_found=0
 	for efi_stub in \
 		"$rootfs/usr/lib/systemd/boot/efi/systemd-bootaa64.efi" \
 		"$rootfs/usr/lib/systemd/boot/efi/systemd-bootx64.efi"; do
@@ -132,9 +135,12 @@ EOF
 			cp "$efi_stub" "$esp/EFI/BOOT/$dest_name"
 			mkdir -p "$esp/EFI/systemd"
 			cp "$efi_stub" "$esp/EFI/systemd/$(basename "$efi_stub")"
+			efi_found=1
 			break
 		fi
 	done
+	[ "$efi_found" -eq 1 ] ||
+		die "systemd-boot EFI binary not found under $rootfs/usr/lib/systemd/boot/efi/ (install systemd-boot-efi)"
 	log "UEFI boot entry written ($esp/loader/entries/lazyos.conf)"
 }
 

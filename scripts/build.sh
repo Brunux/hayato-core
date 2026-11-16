@@ -16,15 +16,19 @@ set -euo pipefail
 require_devices
 require_desktop
 
-"$DEVICES_REPO/scripts/build-kernel.sh"
-# The rootfs does not install Debian's sway (uis/sway/packages.list), so the
-# compositor has to be built before the image is useful.
-"$DESKTOP_REPO/scripts/build-swayfx.sh"
-# Debian packages no workspace renamer, and the bar's pills depend on it.
-"$DESKTOP_REPO/scripts/build-workstyle.sh"
-# The session framework (docs/plan-ui.md): one binary, built from lazyos-desktop's
-# Rust workspace.
-"$DESKTOP_REPO/scripts/build-lazyos.sh"
+if [ "${SKIP_KERNEL_BUILD:-no}" != "yes" ]; then
+	"$DEVICES_REPO/scripts/build-kernel.sh"
+fi
+if [ "${SKIP_DESKTOP_BUILD:-no}" != "yes" ]; then
+	# The rootfs does not install Debian's sway (uis/sway/packages.list), so the
+	# compositor has to be built before the image is useful.
+	"$DESKTOP_REPO/scripts/build-swayfx.sh"
+	# Debian packages no workspace renamer, and the bar's pills depend on it.
+	"$DESKTOP_REPO/scripts/build-workstyle.sh"
+	# The session framework (docs/plan-ui.md): one binary, built from lazyos-desktop's
+	# Rust workspace.
+	"$DESKTOP_REPO/scripts/build-lazyos.sh"
+fi
 "$CORE_DIR/scripts/build-rootfs.sh"
 "$CORE_DIR/scripts/install-kernel.sh"
 "$CORE_DIR/scripts/install-swayfx.sh"

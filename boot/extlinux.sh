@@ -128,3 +128,8 @@ boot_update_running() {
 	[ -n "$root_uuid" ] && extra="root=UUID=$root_uuid rootwait rw"
 	boot_install / / "$extra"
 }
+
+# Optional hook for future SoCs that require raw U-Boot/SPL sector writes on disk.
+boot_flash_spl() {
+	:
+}

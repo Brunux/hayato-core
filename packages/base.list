@@ -47,8 +47,8 @@ openssh-server
 e2fsprogs
 dosfstools
 parted
-# rsync: scripts/install-emmc.sh copies the running system to the internal
-# storage with it, so it has to exist on the device, not only on the build host.
+# rsync: `lazyos installer` (and fallback install-emmc.sh) copies the running
+# system to internal storage with it, so it must exist on the device.
 rsync
 
 # diagnostics

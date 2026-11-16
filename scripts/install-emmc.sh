@@ -14,7 +14,7 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 . "$BOOT_BACKEND"
 
-BLOCK="${DEVICE_BLOCK:-/dev/mmcblk0}"
+BLOCK="${DEVICE_BLOCK:-${deviceinfo_install_target:-/dev/mmcblk0}}"
 
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" DEVICE_BLOCK="$BLOCK" \
@@ -94,9 +94,14 @@ log "Installing $BOOT_TYPE boot target for eMMC root (root=UUID=$ROOT_UUID, kern
 boot_install "$MNT" "$BLOCK" "root=UUID=$ROOT_UUID rootwait rw"
 boot_layout_umount "$MNT"
 
-log "Done. Reboot and boot the internal disk (the eMMC)."
-log "  This firmware shows a developer-mode menu instead of the Ctrl+D/Ctrl+U screen:"
-log "  'internal disk' is the eMMC, 'external disk' is the microSD. With the card out"
-log "  the internal one is the only choice; with the card in, pick it in the menu."
-log "  After a kernel update on the eMMC system, run /usr/libexec/lazyos/install-boot.sh there."
-cgpt show "$BLOCK"
+if [ "$BOOT_TYPE" = "depthcharge" ]; then
+	log "Done. Reboot and boot the internal disk (the eMMC)."
+	log "  This firmware shows a developer-mode menu instead of the Ctrl+D/Ctrl+U screen:"
+	log "  'internal disk' is the eMMC, 'external disk' is the microSD. With the card out"
+	log "  the internal one is the only choice; with the card in, pick it in the menu."
+	log "  After a kernel update on the eMMC system, run /usr/libexec/lazyos/install-boot.sh there."
+	cgpt show "$BLOCK"
+else
+	log "Done. Remove installation media and reboot into $BOOT_TYPE storage on $BLOCK."
+	parted -s "$BLOCK" print || true
+fi

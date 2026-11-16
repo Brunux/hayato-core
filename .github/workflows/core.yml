@@ -44,17 +44,51 @@ jobs:
               mkdir -p "$mock_root/boot/dtbs/vendor" "$mock_root/etc/lazyos"
               touch "$mock_root/boot/vmlinuz-6.12.28-lazyos" "$mock_root/boot/initrd.img-6.12.28-lazyos" "$mock_root/boot/dtbs/vendor/mock-board.dtb"
               if [ "$b" = "uefi" ]; then
+                mkdir -p "$mock_root/usr/lib/systemd/boot/efi"
+                touch "$mock_root/usr/lib/systemd/boot/efi/systemd-bootaa64.efi"
+                deviceinfo_dtb=""
                 boot_install "$mock_root" "$mock_root" "root=UUID=1111-2222 rootwait rw"
                 [ -f "$mock_root/boot/efi/loader/entries/lazyos.conf" ]
+                [ -f "$mock_root/boot/efi/EFI/BOOT/BOOTAA64.EFI" ]
+                [ -f "$mock_root/boot/efi/dtb/vendor/mock-board.dtb" ]
                 grep -q 'root=UUID=1111-2222' "$mock_root/boot/efi/loader/entries/lazyos.conf"
               elif [ "$b" = "extlinux" ]; then
+                deviceinfo_dtb=""
                 boot_install "$mock_root" "$mock_root" "root=UUID=3333-4444 rootwait rw"
                 [ -f "$mock_root/boot/extlinux/extlinux.conf" ]
-                grep -q 'FDT /dtbs/vendor/mock-board.dtb' "$mock_root/boot/extlinux/extlinux.conf"
+                grep -q 'FDTDIR /dtbs/' "$mock_root/boot/extlinux/extlinux.conf"
+                declare -F boot_flash_spl >/dev/null
               fi
               echo "Backend $b OK"
             )
           done
+
+          # Verify debian-pkg kernel release resolution and DTB staging helper
+          mkdir -p "$TMP/kernels/debian-arm64" "$TMP/devices/mock-deb" "$TMP/deb-root/lib/modules/7.2.15+deb14-arm64" "$TMP/deb-root/usr/lib/linux-image-7.2.15+deb14-arm64/rockchip" "$TMP/deb-root/boot"
+          echo "debian-pkg" > "$TMP/kernels/debian-arm64/version"
+          echo "linux-image-arm64" > "$TMP/kernels/debian-arm64/package"
+          echo "debian-arm64" > "$TMP/devices/mock-deb/kernel"
+          printf 'deviceinfo_codename="mock-deb"\ndeviceinfo_arch="aarch64"\ndeviceinfo_boot_type="uefi"\ndeviceinfo_boot_filesystem="vfat"\ndeviceinfo_image_size_mib="8192"\ndeviceinfo_dtb=""\n' > "$TMP/devices/mock-deb/deviceinfo"
+          touch "$TMP/deb-root/boot/vmlinuz-7.2.15+deb14-arm64" "$TMP/deb-root/boot/initrd.img-7.2.15+deb14-arm64" "$TMP/deb-root/usr/lib/linux-image-7.2.15+deb14-arm64/rockchip/rk3588.dtb"
+          (
+            export BUILD_ROOT="$TMP/build"
+            export LAZYOS_DEVICES_DIR="$TMP"
+            export DEVICE="mock-deb"
+            . ./scripts/lib.sh
+            [ "$KERNEL_SOURCE_TYPE" = "debian-pkg" ]
+            [ "$IMAGE_SIZE_MIB" = "8192" ]
+            resolve_kernel_release "$TMP/deb-root"
+            [ "$KERNEL_RELEASE" = "7.2.15+deb14-arm64" ]
+            mkdir -p "$TMP/deb-root/boot/dtbs"
+            cp -a "$TMP/deb-root/usr/lib/linux-image-$KERNEL_RELEASE/." "$TMP/deb-root/boot/dtbs/"
+            mkdir -p "$TMP/deb-root/usr/lib/systemd/boot/efi"
+            touch "$TMP/deb-root/usr/lib/systemd/boot/efi/systemd-bootaa64.efi"
+            . "$BOOT_BACKEND"
+            boot_install "$TMP/deb-root" "$TMP/deb-root" "root=UUID=5555-6666 rootwait rw"
+            [ -f "$TMP/deb-root/boot/efi/dtb/rockchip/rk3588.dtb" ]
+            [ -f "$TMP/deb-root/boot/efi/lazyos/vmlinuz-7.2.15+deb14-arm64" ]
+            echo "Debian-pkg mock OK"
+          )
 
           ./scripts/check-system.sh --help >/dev/null
           rm -rf "$TMP"

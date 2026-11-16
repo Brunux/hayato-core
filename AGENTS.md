@@ -17,6 +17,10 @@ Wayland desktop, Rust `lazyos` binaries, Sway configs, and themes belong in `laz
   or `$REPO_DIR/desktop`.
 - On a booted device (`/usr/libexec/lazyos/`), `lib.sh` falls back cleanly to `/etc/lazyos/deviceinfo`
   and `/etc/lazyos/kernel-cmdline.conf` so runtime tools work without source checkouts.
+- Packaged Debian kernels (`kernels/*/package` -> `KERNEL_SOURCE_TYPE="debian-pkg"`) resolve
+  `KERNEL_RELEASE` from `<rootfs>/lib/modules/*` via `resolve_kernel_release` and sync DTBs from
+  `/usr/lib/linux-image-<ver>/` to `/boot/dtbs/` (`install-kernel.sh` at build time and
+  `/etc/kernel/postinst.d/zz-lazyos-boot` after `apt upgrade` on non-`depthcharge` systems).
 
 ## Pluggable Boot Backend Contract (`boot/<type>.sh`)
 Selected via `deviceinfo_boot_type` (`depthcharge` default, `uefi`, or `extlinux`):
@@ -42,6 +46,10 @@ partitions by `PARTN` + `PARTLABEL`, refuse mounted targets via `findmnt -rn -S`
   `install-kpart.sh`, `make-kpart.sh`, `backup-system.sh`, `restore-system.sh`, `boot/`, `lib*.sh`,
   and modular checks under `/usr/libexec/lazyos/check/{10-core,20-device,30-desktop}.sh`), with
   `/usr/local/sbin/check-system.sh -> /usr/libexec/lazyos/check-system.sh`.
+- Primary live-to-disk installation runs in pure Rust via `lazyos installer` (`lazyos installer apply`
+  in `lazyos-desktop`); `scripts/install-emmc.sh` is kept intact in `/usr/libexec/lazyos/` as a
+  manual/debug fallback for Hayato, while `scripts/install-boot.sh` (`boot_update_running`) handles
+  post-upgrade boot sync across `depthcharge`, `uefi`, and `extlinux`.
 
 ## Release Sanitization (`lib-dist.sh` & `make-release.sh`)
 - `make-release.sh` must strip host secrets, Wi-Fi PSKs, SSH host keys, `machine-id`, and build caches

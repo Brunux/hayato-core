@@ -25,10 +25,21 @@ fi
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"
 require_compositor "$ROOTFS"
 
-# Safety: never touch the internal eMMC or the running root device.
+# Safety: never touch the fixed internal storage or the running root device.
 ROOT_SRC="$(findmnt -n -o SOURCE / 2>/dev/null || true)"
+if [ -n "${deviceinfo_install_target:-}" ]; then
+	case "$BLOCK" in
+		"$deviceinfo_install_target"|"$deviceinfo_install_target"p*|"$deviceinfo_install_target"[0-9]*)
+			die "refusing to write to internal install target: $BLOCK" ;;
+	esac
+fi
 case "$BLOCK" in
-	*/mmcblk0|*/mmcblk0p*) die "refusing to write to internal eMMC: $BLOCK" ;;
+	*/mmcblk0|*/mmcblk0p*)
+		if [ "$(cat /sys/block/mmcblk0/device/removable 2>/dev/null || echo fixed)" != "removable" ] &&
+			[ "$(cat /sys/block/mmcblk0/removable 2>/dev/null || echo 0)" = 0 ]; then
+			die "refusing to write to fixed internal mmcblk0: $BLOCK"
+		fi
+		;;
 esac
 case "$ROOT_SRC" in
 	"$BLOCK"|"$BLOCK"p*|"$BLOCK"[0-9]*) die "refusing to write to the running root device: $BLOCK" ;;
@@ -58,5 +69,9 @@ log "Installing $BOOT_TYPE boot target (root=UUID=$ROOT_UUID)"
 boot_install "$MNT" "$BLOCK" "root=UUID=$ROOT_UUID rootwait rw"
 boot_layout_umount "$MNT"
 
-log "Done. Remove $BLOCK, insert it and pick the external disk in the firmware menu."
-cgpt show "$BLOCK" || true
+log "Done. Remove $BLOCK and boot the target system ($BOOT_TYPE)."
+if [ "$BOOT_TYPE" = "depthcharge" ]; then
+	cgpt show "$BLOCK" || true
+else
+	parted -s "$BLOCK" print || true
+fi

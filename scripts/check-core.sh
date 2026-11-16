@@ -345,17 +345,17 @@ _govs="$(cat /sys/devices/system/cpu/cpufreq/policy*/scaling_governor 2>/dev/nul
 case "$_govs" in
 	"schedutil ") ok "cpufreq governor is schedutil on every policy" ;;
 	"") skip "no cpufreq scaling_governor sysfs nodes" ;;
-	*) warn "cpufreq governor is '${_govs% }', not schedutil" ;;
+	*) info "cpufreq governor is '${_govs% }' (board check enforces board targets)" ;;
 esac
 
 if [ -r /sys/kernel/mm/lru_gen/enabled ]; then
 	_lru="$(cat /sys/kernel/mm/lru_gen/enabled)"
 	case "$_lru" in
-		0x0000) fail "MGLRU is built in but disabled (lru_gen/enabled=$_lru)" ;;
+		0x0000) info "MGLRU available but disabled by default (lru_gen/enabled=$_lru)" ;;
 		*) ok "MGLRU enabled ($_lru)" ;;
 	esac
 else
-	fail "no /sys/kernel/mm/lru_gen: the kernel was built without CONFIG_LRU_GEN"
+	info "no /sys/kernel/mm/lru_gen (stock/non-MGLRU kernel)"
 fi
 
 _thp="$(cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null)"
@@ -422,8 +422,8 @@ if [ -r "$_cfg" ]; then
 	[ -n "$(grep -x 'CONFIG_HZ=1000' "$_cfg" 2>/dev/null)" ] || _missing_cfg="$_missing_cfg HZ=1000"
 	[ -n "$(grep -x 'CONFIG_LRU_GEN=y' "$_cfg" 2>/dev/null)" ] || _missing_cfg="$_missing_cfg LRU_GEN"
 	[ -n "$(grep -x 'CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y' "$_cfg" 2>/dev/null)" ] || _missing_cfg="$_missing_cfg governor=schedutil"
-	[ -z "$_missing_cfg" ] && ok "kernel config carries the tuning ($(basename "$_cfg"))" ||
-		warn "kernel config lacks:$_missing_cfg"
+	[ -z "$_missing_cfg" ] && ok "kernel config carries LazyOS tuning ($(basename "$_cfg"))" ||
+		info "stock kernel config ($(basename "$_cfg")) omits custom tuning:$_missing_cfg"
 else
 	skip "no /boot/config-* to check the kernel options against"
 fi
