@@ -15,6 +15,8 @@ jobs:
           for f in scripts/*.sh boot/*.sh; do
             bash -n "$f"
           done
+      - name: Unit tests for lib.sh, lib-dist.sh, lib-cgpt.sh and wifi.sh
+        run: bash tests/run.sh
       - name: Verify modular lib.sh and boot backends with mock devices
         run: |
           TMP="$(mktemp -d)"

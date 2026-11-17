@@ -62,3 +62,11 @@ partitions by `PARTN` + `PARTLABEL`, refuse mounted targets via `findmnt -rn -S`
 - `make-release.sh` must strip host secrets, Wi-Fi PSKs, SSH host keys, `machine-id`, and build caches
   via `lib-dist.sh` before producing the sanitized `<device>.img.xz` release image and `SHA256SUMS`.
   Keep `core/VERSION` synced with `desktop/VERSION` on releases.
+
+## Tests (`tests/`)
+- `bash tests/run.sh` runs the dependency-free shell suites for `lib.sh` (device discovery, kernel
+  metadata, boot cmdline), `lib-dist.sh` (sanitization and leak checks), `lib-cgpt.sh` (GPT geometry,
+  partition resolution, fstab) and `wifi.sh` (profile import/export). Block devices, `cgpt`/`parted`,
+  `install -o root` and `need_root` are shimmed, so the suite runs unprivileged.
+- `.github/workflows/core.yml` and `./build.sh validate` run it; add a case there when a helper in
+  those files gains a branch that a boot, image or Wi-Fi failure could hit.
