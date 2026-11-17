@@ -17,7 +17,9 @@
 #
 # Importing into a *running* system also needs `nmcli connection reload`.
 set -euo pipefail
-. "$(dirname "$0")/lib.sh"
+_WIFI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+. "$_WIFI_DIR/lib.sh"
 
 NM_DIR=/etc/NetworkManager/system-connections
 
@@ -39,22 +41,24 @@ list_profiles() {
 }
 
 do_export() {
-	local src="${1:-$NM_DIR}" f n=0
+	local src="${1:-$NM_DIR}" f n=0 files
 	need_root
 	install -d -m 700 "$WIFI_DIR"
+	files="$(list_profiles "$src")" || return 1
 	while IFS= read -r f; do
 		install -m 600 -o root -g root "$f" "$WIFI_DIR/$(basename "$f")"
 		n=$((n + 1))
-	done < <(list_profiles "$src")
+	done <<<"$files"
 	log "Exported $n profile(s) to $WIFI_DIR"
 }
 
 do_import() {
-	local src="${1:-$WIFI_DIR}" dest="${2:-$ROOTFS}" dir f name tmp n=0
+	local src="${1:-$WIFI_DIR}" dest="${2:-$ROOTFS}" dir f name tmp n=0 files
 	need_root
 	[ -d "$dest" ] || die "not a directory: $dest"
 	dir="$dest$NM_DIR"
 	install -d -m 700 "$dir"
+	files="$(list_profiles "$src")" || return 1
 	while IFS= read -r f; do
 		name="$(basename "$f")"
 		tmp="$dir/.$name.tmp"
@@ -63,20 +67,28 @@ do_import() {
 		chmod 600 "$tmp"
 		mv -f "$tmp" "$dir/$name"
 		n=$((n + 1))
-	done < <(list_profiles "$src")
+	done <<<"$files"
 	log "Imported $n profile(s) into $dir (interface-name dropped)"
 }
 
-case "${1:-}" in
-export)
-	shift
-	do_export "${1:-}"
-	;;
-import)
-	shift
-	do_import "${1:-}" "${2:-}"
-	;;
-*)
-	usage
-	;;
-esac
+main() {
+	case "${1:-}" in
+	export)
+		shift
+		do_export "${1:-}"
+		;;
+	import)
+		shift
+		do_import "${1:-}" "${2:-}"
+		;;
+	*)
+		usage
+		;;
+	esac
+}
+
+# Sourcing this file (the tests do) defines the helpers without running a
+# command; executing it keeps the same command line as before.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	main "$@"
+fi
