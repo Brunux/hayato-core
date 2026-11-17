@@ -154,4 +154,28 @@ printf '# host-specific comment\nquiet   loglevel=2\n  root=PARTUUID=1111\n' \
 		"without a rootfs the device cmdline is the base"
 )
 
+# --- sync_rootfs_to_mount copies / and /boot in two passes ---------------
+SYNC_SRC="$TMP/sync-src"
+SYNC_DST="$TMP/sync-dst"
+mkdir -p "$SYNC_SRC/etc" "$SYNC_SRC/boot/efi" "$SYNC_DST/boot"
+printf 'root\n' >"$SYNC_SRC/etc/root-file"
+printf 'kernel\n' >"$SYNC_SRC/boot/vmlinuz-test"
+printf 'esp\n' >"$SYNC_SRC/boot/efi/BOOTAA64.EFI"
+printf 'stale\n' >"$SYNC_DST/stale-root"
+printf 'stale\n' >"$SYNC_DST/boot/stale-boot"
+(
+	export BUILD_ROOT="$TMP/build-sync"
+	export LAZYOS_ALLOW_NO_DEVICE=1
+	unset DEVICE DEVICE_DIR
+	# shellcheck disable=SC1091
+	. "$ROOT/scripts/lib.sh"
+	sync_rootfs_to_mount "$SYNC_SRC" "$SYNC_DST"
+)
+assert_true "the root filesystem is copied" test -f "$SYNC_DST/etc/root-file"
+assert_true "a separate /boot is copied" test -f "$SYNC_DST/boot/vmlinuz-test"
+assert_false "a mounted ESP at /boot/efi is not overwritten" \
+	test -e "$SYNC_DST/boot/efi/BOOTAA64.EFI"
+assert_false "stale root files are deleted" test -e "$SYNC_DST/stale-root"
+assert_false "stale /boot files are deleted" test -e "$SYNC_DST/boot/stale-boot"
+
 finish
