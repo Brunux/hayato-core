@@ -78,8 +78,8 @@ if [ -x "$ROOTFS/usr/bin/lazyos-games" ]; then
 	_GAMES_REPORTED="$("$ROOTFS/usr/bin/lazyos-games" --version 2>/dev/null || true)"
 	[ "$_GAMES_REPORTED" = "$(cat "$_VER_FILE")" ] ||
 		die "$ROOTFS/usr/bin/lazyos-games does not report $(cat "$_VER_FILE") (got '$_GAMES_REPORTED')"
-	[ -f "$ROOTFS/usr/share/lazyos/games/library/index.html" ] ||
-		die "$ROOTFS/usr/share/lazyos/games/library/index.html is missing (run build-lazyos.sh)"
+	[ -f "$ROOTFS/usr/share/lazyos/games/theme-default.css" ] ||
+		die "$ROOTFS/usr/share/lazyos/games/theme-default.css is missing (run build-lazyos.sh)"
 fi
 
 # One FAIL-shaped answer per name here beats a dozen on the card: a link that
