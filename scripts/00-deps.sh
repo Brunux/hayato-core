@@ -90,6 +90,9 @@ elif command -v apt-get >/dev/null 2>&1; then
 		libpcre2-dev libjson-c-dev libevdev-dev libinput-dev libsystemd-dev \
 		libxcb1-dev libxcb-icccm4-dev libxcb-composite0-dev libxcb-xkb-dev \
 		libxcb-errors-dev \
+		libgtk-4-dev libwebkitgtk-6.0-dev \
+		libasound2-dev libpulse-dev libudev-dev libdrm-dev libfribidi-dev libass-dev \
+		libzstd-dev liblzma-dev \
 		debootstrap \
 		cgpt vboot-kernel-utils depthcharge-tools \
 		imagemagick librsvg2-bin fontconfig \
