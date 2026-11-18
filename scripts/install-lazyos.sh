@@ -8,8 +8,9 @@
 # `install-lazyos.sh /` installs it on the running system, which is the
 # counterpart of install-kpart.sh when the binary changes.
 #
-# Two things land: /usr/bin/lazyos and the symlinks /usr/bin/lazyos-menu and
-# /usr/bin/lazyos-task -> lazyos. The links are the "migrated set"
+# Three things land: /usr/bin/lazyos, the symlinks /usr/bin/lazyos-menu and
+# /usr/bin/lazyos-task -> lazyos, and the game library (/usr/bin/lazyos-games
+# plus /usr/share/lazyos/games). The links are the "migrated set"
 # check-system.sh validates: a name whose `check-system.sh` line must resolve,
 # and whose command must be in `--help`.
 # The ~64 old names under ~/.config/bin join it one spec at a time, because each
@@ -45,6 +46,13 @@ install -m 0755 "$LAZYOS_STAGE/lazyos" "$ROOTFS/usr/bin/lazyos"
 if [ -f "$LAZYOS_STAGE/lazyos-notify" ]; then
 	install -m 0755 "$LAZYOS_STAGE/lazyos-notify" "$ROOTFS/usr/bin/lazyos-notify"
 fi
+if [ -f "$LAZYOS_STAGE/lazyos-games" ]; then
+	install -m 0755 "$LAZYOS_STAGE/lazyos-games" "$ROOTFS/usr/bin/lazyos-games"
+fi
+if [ -d "$LAZYOS_STAGE/share/lazyos/games" ]; then
+	install -d "$ROOTFS/usr/share/lazyos/games"
+	cp -a "$LAZYOS_STAGE/share/lazyos/games/." "$ROOTFS/usr/share/lazyos/games/"
+fi
 
 # Every name the command table says is installed, made here - not just the two
 # the framework bootstrapped with. The table's `installed` field is what
@@ -65,6 +73,14 @@ _VER_FILE="$CORE_DIR/VERSION"
 [ -n "${DESKTOP_REPO:-}" ] && [ -f "$DESKTOP_REPO/VERSION" ] && _VER_FILE="$DESKTOP_REPO/VERSION"
 [ "$REPORTED" = "$(cat "$_VER_FILE")" ] ||
 	die "$ROOTFS/usr/bin/lazyos does not report $(cat "$_VER_FILE") (got '$REPORTED')"
+
+if [ -x "$ROOTFS/usr/bin/lazyos-games" ]; then
+	_GAMES_REPORTED="$("$ROOTFS/usr/bin/lazyos-games" --version 2>/dev/null || true)"
+	[ "$_GAMES_REPORTED" = "$(cat "$_VER_FILE")" ] ||
+		die "$ROOTFS/usr/bin/lazyos-games does not report $(cat "$_VER_FILE") (got '$_GAMES_REPORTED')"
+	[ -f "$ROOTFS/usr/share/lazyos/games/theme-default.css" ] ||
+		die "$ROOTFS/usr/share/lazyos/games/theme-default.css is missing (run build-lazyos.sh)"
+fi
 
 # One FAIL-shaped answer per name here beats a dozen on the card: a link that
 # does not resolve is the key that opens nothing, and only this script can say

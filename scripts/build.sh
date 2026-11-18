@@ -5,7 +5,7 @@
 #   kernel-stage-<flavor>/  built kernel, modules, dtbs
 #   swayfx-stage/           the compositor's .debs (scenefx + swayfx)
 #   workstyle-stage/        the workspace renamer's .deb
-#   lazyos-stage/           the session framework binary
+#   lazyos-stage/           the session framework binary, lazyos-games and the game stack
 #   rootfs-<device>/        Debian rootfs with the kernel, compositor, workstyle and lazyos installed
 #   <device>.vmlinuz.kpart  signed depthcharge FIT kernel partition image
 #
@@ -34,6 +34,7 @@ fi
 "$CORE_DIR/scripts/install-swayfx.sh"
 "$CORE_DIR/scripts/install-workstyle.sh"
 "$CORE_DIR/scripts/install-lazyos.sh"
+"$CORE_DIR/scripts/install-retroarch.sh"
 if [ "$BOOT_TYPE" = "depthcharge" ]; then
 	"$CORE_DIR/scripts/make-kpart.sh"
 fi
