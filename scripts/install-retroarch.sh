@@ -39,9 +39,11 @@ if [ "$ROOTFS" = "/" ]; then
 	log "Installing RetroArch on the running system"
 	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$LAZYOS_STAGE"/retroarch_*.deb
 	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $CORES
-	if ls "$LAZYOS_STAGE"/lazyos-libretro-mupen64plus-next_*.deb >/dev/null 2>&1; then
-		DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$LAZYOS_STAGE"/lazyos-libretro-mupen64plus-next_*.deb
-	fi
+	for _core_deb in "$LAZYOS_STAGE"/lazyos-libretro-mupen64plus-next_*.deb \
+		"$LAZYOS_STAGE"/lazyos-libretro-fbneo_*.deb; do
+		[ -f "$_core_deb" ] || continue
+		DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$_core_deb"
+	done
 else
 	log "Installing RetroArch into $ROOTFS"
 	STAGE_IN_CHROOT="/var/tmp/retroarch"
@@ -49,6 +51,7 @@ else
 	mkdir -p "$ROOTFS$STAGE_IN_CHROOT"
 	cp "$LAZYOS_STAGE"/retroarch_*.deb "$ROOTFS$STAGE_IN_CHROOT/"
 	cp "$LAZYOS_STAGE"/lazyos-libretro-mupen64plus-next_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
+	cp "$LAZYOS_STAGE"/lazyos-libretro-fbneo_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
 
 	mount --bind /dev "$ROOTFS/dev"
 	mount -t proc proc "$ROOTFS/proc"
