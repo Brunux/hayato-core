@@ -451,6 +451,22 @@ else
 	warn "no UI files staged for '$UI'"
 fi
 
+log "Installing editxr (the Notes editor)"
+# editxr is not in Debian: build-rootfs.sh fetched the pinned static aarch64
+# release and verified it, and the tarball is one file. It lands in
+# /usr/local/bin because it has no self-updater to keep working from a user
+# directory; the image is rebuilt to move it.
+if [ -f /tmp/editxr.tgz ]; then
+	install -d -m 0755 /usr/local/bin
+	tar -xzf /tmp/editxr.tgz -C /usr/local/bin editxr
+	chmod 0755 /usr/local/bin/editxr
+	rm -f /tmp/editxr.tgz
+	if [ ! -x /usr/local/bin/editxr ]; then
+		warn "editxr did not extract: /usr/local/bin/editxr is missing"
+		exit 1
+	fi
+fi
+
 log "Installing OpenCode (the agent the menu launches, already installed)"
 # The Agents menu's other CLIs are installed by the user with npm into ~/.local;
 # OpenCode ships with the image instead (tools/opencode/ pins the arm64 tarball,

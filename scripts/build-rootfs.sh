@@ -132,6 +132,23 @@ if [ -f "$OPENCODE_DIR/SHA256SUMS" ]; then
 else
 	warn "no $OPENCODE_DIR/SHA256SUMS: the image gets no OpenCode"
 fi
+# The note editor (tools/editxr/ pins the static aarch64 release). It is not a
+# Debian package, so the tarball is fetched here, verified against the committed
+# pin, and handed to rootfs-setup.sh, which extracts /usr/local/bin/editxr.
+if [ -f "$EDITXR_DIR/SHA256SUMS" ]; then
+	if [ ! -f "$SRC_DIR/$EDITXR_TARBALL" ]; then
+		log "Downloading $EDITXR_TARBALL"
+		curl -fL --retry 3 --progress-bar -o "$SRC_DIR/$EDITXR_TARBALL.part" "$EDITXR_URL"
+		mv "$SRC_DIR/$EDITXR_TARBALL.part" "$SRC_DIR/$EDITXR_TARBALL"
+	fi
+	( cd "$SRC_DIR" && sha256sum -c --ignore-missing "$EDITXR_DIR/SHA256SUMS" ) ||
+		die "checksum mismatch for $EDITXR_TARBALL (delete $SRC_DIR/$EDITXR_TARBALL and retry)"
+	install -m 0644 "$SRC_DIR/$EDITXR_TARBALL" "$ROOTFS/tmp/editxr.tgz"
+	# MIT: the notice travels with the binary.
+	install -Dm644 "$EDITXR_DIR/LICENSE" "$ROOTFS/usr/share/doc/editxr/copyright"
+else
+	warn "no $EDITXR_DIR/SHA256SUMS: the image gets no editxr"
+fi
 # Stage the clean repository snapshot into ~/Dev/LazyOS for offline inspection/rebuilds.
 rm -rf "$ROOTFS/tmp/repo"
 mkdir -p "$ROOTFS/tmp/repo"
@@ -188,7 +205,7 @@ fi
 
 rm -rf "$ROOTFS/tmp/packages" "$ROOTFS/tmp/device-files" "$ROOTFS/tmp/ui-files" \
 	"$ROOTFS/tmp/lazyos-runtime" "$ROOTFS/tmp/lazyos-etc" "$ROOTFS/tmp/repo" \
-	"$ROOTFS/tmp/opencode.tgz" "$ROOTFS/root/rootfs-setup.sh"
+	"$ROOTFS/tmp/opencode.tgz" "$ROOTFS/tmp/editxr.tgz" "$ROOTFS/root/rootfs-setup.sh"
 
 # Whatever is built here ships as a disk (write-sd.sh, make-image.sh) or is
 # cloned onto one (install-emmc.sh), so it has to leave as a first boot: from an
