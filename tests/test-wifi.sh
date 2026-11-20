@@ -14,7 +14,7 @@ trap 'rm -rf "$TMP"' EXIT
 # the two privileged calls with no-ops.
 load_wifi() {
 	export BUILD_ROOT="$TMP/build"
-	export LAZYOS_ALLOW_NO_DEVICE=1
+	export HAYATO_ALLOW_NO_DEVICE=1
 	unset DEVICE DEVICE_DIR
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/wifi.sh"

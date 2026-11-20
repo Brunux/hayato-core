@@ -13,13 +13,13 @@ set -euo pipefail
 ROOTFS="$(readlink -f "$ROOTFS" 2>/dev/null || printf '%s' "$ROOTFS")"
 
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"
-ls "$LAZYOS_STAGE"/retroarch_*.deb >/dev/null 2>&1 ||
-	die "no RetroArch package in $LAZYOS_STAGE (run build-retroarch.sh first)"
+ls "$HAYATO_STAGE"/retroarch_*.deb >/dev/null 2>&1 ||
+	die "no RetroArch package in $HAYATO_STAGE (run build-retroarch.sh first)"
 
 # The cores Depends on `retroarch`. They are installed after this package so apt
-# finds the LazyOS build already in place; installing them from the session list
+# finds the Hayato build already in place; installing them from the session list
 # would pull Debian's retroarch (and its assets/Qt5) first.
-CORE_LIST="${DESKTOP_REPO:-$LAZYOS_DESKTOP_DIR}/packages/games.list"
+CORE_LIST="${DESKTOP_REPO:-$HAYATO_DESKTOP_DIR}/packages/games.list"
 CORES=""
 if [ -f "$CORE_LIST" ]; then
 	CORES="$(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$CORE_LIST" | tr '\n' ' ')"
@@ -30,17 +30,17 @@ if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n \
 		BUILD_ROOT="$BUILD_ROOT" WORK_DIR="$WORK_DIR" SRC_DIR="$SRC_DIR" \
 		DEVICE="$DEVICE" ROOTFS="$ROOTFS" \
-		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
-		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
+		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")"
 fi
 
 if [ "$ROOTFS" = "/" ]; then
 	log "Installing RetroArch on the running system"
-	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$LAZYOS_STAGE"/retroarch_*.deb
+	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$HAYATO_STAGE"/retroarch_*.deb
 	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $CORES
-	for _core_deb in "$LAZYOS_STAGE"/lazyos-libretro-mupen64plus-next_*.deb \
-		"$LAZYOS_STAGE"/lazyos-libretro-fbneo_*.deb; do
+	for _core_deb in "$HAYATO_STAGE"/hayato-libretro-mupen64plus-next_*.deb \
+		"$HAYATO_STAGE"/hayato-libretro-fbneo_*.deb; do
 		[ -f "$_core_deb" ] || continue
 		DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$_core_deb"
 	done
@@ -49,9 +49,9 @@ else
 	STAGE_IN_CHROOT="/var/tmp/retroarch"
 	rm -rf "$ROOTFS$STAGE_IN_CHROOT"
 	mkdir -p "$ROOTFS$STAGE_IN_CHROOT"
-	cp "$LAZYOS_STAGE"/retroarch_*.deb "$ROOTFS$STAGE_IN_CHROOT/"
-	cp "$LAZYOS_STAGE"/lazyos-libretro-mupen64plus-next_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
-	cp "$LAZYOS_STAGE"/lazyos-libretro-fbneo_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
+	cp "$HAYATO_STAGE"/retroarch_*.deb "$ROOTFS$STAGE_IN_CHROOT/"
+	cp "$HAYATO_STAGE"/hayato-libretro-mupen64plus-next_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
+	cp "$HAYATO_STAGE"/hayato-libretro-fbneo_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
 
 	mount --bind /dev "$ROOTFS/dev"
 	mount -t proc proc "$ROOTFS/proc"
@@ -79,6 +79,6 @@ case "$_VERSION" in
 *RetroArch*) log "Installed: $_VERSION" ;;
 *) die "the installed RetroArch does not answer ('${_VERSION:-retroarch --version failed}')" ;;
 esac
-[ "$ROOTFS" = "/" ] && [ -f /etc/lazyos/retroarch.cfg ] ||
-	[ -f "$ROOTFS/etc/lazyos/retroarch.cfg" ] ||
-	die "/etc/lazyos/retroarch.cfg is missing (the library's kiosk overlay)"
+[ "$ROOTFS" = "/" ] && [ -f /etc/hayato/retroarch.cfg ] ||
+	[ -f "$ROOTFS/etc/hayato/retroarch.cfg" ] ||
+	die "/etc/hayato/retroarch.cfg is missing (the library's kiosk overlay)"

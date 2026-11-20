@@ -22,7 +22,7 @@
 # Writing requires CONFIRM=yes; what it replaces is backed up first.
 #
 # RESUME=yes|no only applies to the rebuilt image: `yes` adds the port's
-# `resume=LABEL=lazyos_swap` (the label the Auxiliary swap menu writes, which is
+# `resume=LABEL=hayato_swap` (the label the Auxiliary swap menu writes, which is
 # what hibernation needs to come back), `no` drops a resume= the machine has, and
 # unset carries the running command line's own resume= over. See the paragraph
 # below on why it is carried instead of dropped.
@@ -34,8 +34,8 @@ if [ "$(id -u)" -ne 0 ]; then
 	# sudo -n starts from a clean environment, so CONFIRM=yes has to be forwarded
 	# explicitly or the guard below can never pass through the re-exec.
 	exec sudo -n DEVICE="$DEVICE" CONFIRM="${CONFIRM:-}" RESUME="${RESUME:-}" \
-		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
-		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
+		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "$@"
 fi
 
@@ -108,9 +108,9 @@ else
 			# local-premount/resume is 30 s with nothing on the screen. It is a
 			# warning and not a refusal: the swap card can be written after the
 			# kernel partition, and an unlabelled card is not a broken kpart.
-			findfs LABEL=lazyos_swap >/dev/null 2>&1 ||
-				warn "no partition carries the lazyos_swap label yet: the next boot waits up to 30 s for it, and hibernation still has nowhere to go"
-			_cmdline="$_cmdline resume=LABEL=lazyos_swap"
+			findfs LABEL=hayato_swap >/dev/null 2>&1 ||
+				warn "no partition carries the hayato_swap label yet: the next boot waits up to 30 s for it, and hibernation still has nowhere to go"
+			_cmdline="$_cmdline resume=LABEL=hayato_swap"
 			;;
 		no) log "Dropping ${_running_resume:-the previous resume=} from the rebuilt command line" ;;
 		*)

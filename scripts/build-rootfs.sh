@@ -9,7 +9,7 @@ set -euo pipefail
 UI="${UI:-sway}"
 require_desktop
 [ -d "$UI_DIR" ] || die "unknown UI '$UI' (see $UIS_DIR)"
-TARGET_HOSTNAME="${TARGET_HOSTNAME:-lazyos}"
+TARGET_HOSTNAME="${TARGET_HOSTNAME:-hayato}"
 USERNAME="${USERNAME:-brunux}"
 USERPASS="${USERPASS:-debian}"
 # The one source of the version the image reports: /etc/os-release's
@@ -23,8 +23,8 @@ if [ "$(id -u)" -ne 0 ]; then
 	# would otherwise be silently dropped and replaced by the default.
 	exec sudo -n \
 		BUILD_ROOT="$BUILD_ROOT" WORK_DIR="$WORK_DIR" SRC_DIR="$SRC_DIR" \
-		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
-		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
+		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		DEVICE="$DEVICE" UI="$UI" WIFI_DIR="$WIFI_DIR" \
 		LOCALE="$LOCALE" TIMEZONE="$TIMEZONE" \
 		TARGET_HOSTNAME="$TARGET_HOSTNAME" USERNAME="$USERNAME" USERPASS="$USERPASS" \
@@ -98,24 +98,24 @@ if [ -d "$UI_DIR/files" ]; then
 	chown -R root:root "$ROOTFS/tmp/ui-files"
 fi
 
-# Stage FHS runtime helpers (/usr/libexec/lazyos & /etc/lazyos) so the running
+# Stage FHS runtime helpers (/usr/libexec/hayato & /etc/hayato) so the running
 # device manages boot, eMMC installation, backup, and system verification without
 # needing a checkout in ~/Dev/.
-rm -rf "$ROOTFS/tmp/lazyos-runtime" "$ROOTFS/tmp/lazyos-etc"
-mkdir -p "$ROOTFS/tmp/lazyos-runtime/boot" "$ROOTFS/tmp/lazyos-runtime/check" "$ROOTFS/tmp/lazyos-etc"
-cp "$CORE_DIR"/boot/*.sh "$ROOTFS/tmp/lazyos-runtime/boot/"
-cp "$CORE_DIR/VERSION" "$ROOTFS/tmp/lazyos-runtime/VERSION"
+rm -rf "$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc"
+mkdir -p "$ROOTFS/tmp/hayato-runtime/boot" "$ROOTFS/tmp/hayato-runtime/check" "$ROOTFS/tmp/hayato-etc"
+cp "$CORE_DIR"/boot/*.sh "$ROOTFS/tmp/hayato-runtime/boot/"
+cp "$CORE_DIR/VERSION" "$ROOTFS/tmp/hayato-runtime/VERSION"
 for _rt in lib.sh lib-cgpt.sh lib-dist.sh install-emmc.sh install-boot.sh install-kpart.sh \
 	make-kpart.sh backup-system.sh restore-system.sh wifi.sh check-system.sh check-core.sh; do
-	[ -f "$CORE_DIR/scripts/$_rt" ] && cp "$CORE_DIR/scripts/$_rt" "$ROOTFS/tmp/lazyos-runtime/"
+	[ -f "$CORE_DIR/scripts/$_rt" ] && cp "$CORE_DIR/scripts/$_rt" "$ROOTFS/tmp/hayato-runtime/"
 done
-cp "$CORE_DIR/scripts/check-core.sh" "$ROOTFS/tmp/lazyos-runtime/check/10-core.sh"
-[ -f "$DEVICE_DIR/check-device.sh" ] && cp "$DEVICE_DIR/check-device.sh" "$ROOTFS/tmp/lazyos-runtime/check/20-device.sh"
-[ -f "$DESKTOP_REPO/scripts/check-desktop.sh" ] && cp "$DESKTOP_REPO/scripts/check-desktop.sh" "$ROOTFS/tmp/lazyos-runtime/check/30-desktop.sh"
-printf '%s\n' "$DEVICE" >"$ROOTFS/tmp/lazyos-etc/device"
-cp "$DEVICE_DIR/deviceinfo" "$ROOTFS/tmp/lazyos-etc/deviceinfo"
-[ -f "$DEVICE_DIR/kernel-cmdline.conf" ] && cp "$DEVICE_DIR/kernel-cmdline.conf" "$ROOTFS/tmp/lazyos-etc/kernel-cmdline.conf"
-chown -R root:root "$ROOTFS/tmp/lazyos-runtime" "$ROOTFS/tmp/lazyos-etc"
+cp "$CORE_DIR/scripts/check-core.sh" "$ROOTFS/tmp/hayato-runtime/check/10-core.sh"
+[ -f "$DEVICE_DIR/check-device.sh" ] && cp "$DEVICE_DIR/check-device.sh" "$ROOTFS/tmp/hayato-runtime/check/20-device.sh"
+[ -f "$DESKTOP_REPO/scripts/check-desktop.sh" ] && cp "$DESKTOP_REPO/scripts/check-desktop.sh" "$ROOTFS/tmp/hayato-runtime/check/30-desktop.sh"
+printf '%s\n' "$DEVICE" >"$ROOTFS/tmp/hayato-etc/device"
+cp "$DEVICE_DIR/deviceinfo" "$ROOTFS/tmp/hayato-etc/deviceinfo"
+[ -f "$DEVICE_DIR/kernel-cmdline.conf" ] && cp "$DEVICE_DIR/kernel-cmdline.conf" "$ROOTFS/tmp/hayato-etc/kernel-cmdline.conf"
+chown -R root:root "$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc"
 # The one agent the image ships (see the Agents section of scripts/lib.sh): its
 # tarball is fetched here, verified against the committed pin, and handed to
 # rootfs-setup.sh, which extracts it into the user's ~/.opencode/bin. Cached in
@@ -149,7 +149,7 @@ if [ -f "$EDITXR_DIR/SHA256SUMS" ]; then
 else
 	warn "no $EDITXR_DIR/SHA256SUMS: the image gets no editxr"
 fi
-# Stage the clean repository snapshot into ~/Dev/LazyOS for offline inspection/rebuilds.
+# Stage the clean repository snapshot into ~/Dev/Hayato for offline inspection/rebuilds.
 rm -rf "$ROOTFS/tmp/repo"
 mkdir -p "$ROOTFS/tmp/repo"
 _archive_git() {
@@ -204,7 +204,7 @@ if [ -d "$WIFI_DIR" ]; then
 fi
 
 rm -rf "$ROOTFS/tmp/packages" "$ROOTFS/tmp/device-files" "$ROOTFS/tmp/ui-files" \
-	"$ROOTFS/tmp/lazyos-runtime" "$ROOTFS/tmp/lazyos-etc" "$ROOTFS/tmp/repo" \
+	"$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc" "$ROOTFS/tmp/repo" \
 	"$ROOTFS/tmp/opencode.tgz" "$ROOTFS/tmp/editxr.tgz" "$ROOTFS/root/rootfs-setup.sh"
 
 # Whatever is built here ships as a disk (write-sd.sh, make-image.sh) or is

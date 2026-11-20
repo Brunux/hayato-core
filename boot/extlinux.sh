@@ -1,6 +1,6 @@
 #!/bin/bash
 # Standard U-Boot / SBC extlinux.conf boot backend (GPT /boot + ext4 root).
-# Implements the uniform lazyos-core boot_* interface.
+# Implements the uniform hayato-core boot_* interface.
 
 EXTLINUX_BOOT_MIB="${deviceinfo_boot_size_mib:-$BOOT_SIZE_MIB}"
 
@@ -42,9 +42,9 @@ boot_layout_create() {
 	local boot_end="$((boot_start + EXTLINUX_BOOT_MIB))MiB"
 	parted -s "$disk" \
 		mktable gpt \
-		mkpart lazyos_boot "$BOOT_FS" "${boot_start}MiB" "$boot_end" \
+		mkpart hayato_boot "$BOOT_FS" "${boot_start}MiB" "$boot_end" \
 		set 1 legacy_boot on \
-		mkpart lazyos_root ext4 "$boot_end" 100%
+		mkpart hayato_root ext4 "$boot_end" 100%
 	_extlinux_wait_parts "$disk"
 	_extlinux_parts "$disk"
 }
@@ -52,11 +52,11 @@ boot_layout_create() {
 boot_layout_mount() {
 	local disk="$1" mnt="$2"
 	_extlinux_parts "$disk"
-	log "Formatting $BOOT_PART ($BOOT_FS, label lazyos_boot)"
-	"mkfs.$BOOT_FS" -F -q -L lazyos_boot "$BOOT_PART" >/dev/null
+	log "Formatting $BOOT_PART ($BOOT_FS, label hayato_boot)"
+	"mkfs.$BOOT_FS" -F -q -L hayato_boot "$BOOT_PART" >/dev/null
 	BOOT_UUID="$(blkid -s UUID -o value "$BOOT_PART")"
-	log "Formatting $ROOT_PART (ext4, label lazyos_root)"
-	mkfs.ext4 -F -q -L lazyos_root "$ROOT_PART" >/dev/null
+	log "Formatting $ROOT_PART (ext4, label hayato_root)"
+	mkfs.ext4 -F -q -L hayato_root "$ROOT_PART" >/dev/null
 	ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART")"
 	[ -n "$BOOT_UUID" ] && [ -n "$ROOT_UUID" ] || die "could not read partition UUIDs on $disk"
 
@@ -107,9 +107,9 @@ boot_install() {
 	mkdir -p "$boot/extlinux"
 	{
 		printf 'TIMEOUT 10\n'
-		printf 'DEFAULT lazyos\n\n'
-		printf 'LABEL lazyos\n'
-		printf '    MENU LABEL LazyOS (%s)\n' "$rel"
+		printf 'DEFAULT hayato\n\n'
+		printf 'LABEL hayato\n'
+		printf '    MENU LABEL Hayato (%s)\n' "$rel"
 		printf '    LINUX /vmlinuz-%s\n' "$rel"
 		printf '    INITRD /initrd.img-%s\n' "$rel"
 		if [ -n "$dtb_rel" ]; then

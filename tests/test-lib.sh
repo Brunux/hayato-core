@@ -19,7 +19,7 @@ make_device() {
 	printf 'deviceinfo_codename="%s"\ndeviceinfo_arch="%s"\ndeviceinfo_boot_type="%s"\n' \
 		"$dev" "$arch" "$boot" >"$repo/devices/$dev/deviceinfo"
 	printf '6.12.28\n' >"$repo/kernels/arm64-mainline/version"
-	printf 'CONFIG_LOCALVERSION="-lazyos"\nCONFIG_PREEMPT=y\n' \
+	printf 'CONFIG_LOCALVERSION="-hayato"\nCONFIG_PREEMPT=y\n' \
 		>"$repo/kernels/arm64-mainline/base.config"
 }
 
@@ -35,7 +35,7 @@ printf 'deviceinfo_boot_size_mib="768"\ndeviceinfo_boot_filesystem="vfat"\n' \
 
 (
 	export BUILD_ROOT="$TMP/build-a"
-	export LAZYOS_DEVICES_DIR="$REPO_A"
+	export HAYATO_DEVICES_DIR="$REPO_A"
 	export DEVICE=mock-depth
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/lib.sh"
@@ -46,7 +46,7 @@ printf 'deviceinfo_boot_size_mib="768"\ndeviceinfo_boot_filesystem="vfat"\n' \
 	assert_eq "arm64" "$KERNEL_ARCH" "aarch64 maps to the arm64 kernel architecture"
 	assert_eq "source" "$KERNEL_SOURCE_TYPE" "a base.config kernel is source-built"
 	assert_eq "arm64-mainline" "$KERNEL_FLAVOR" "kernel flavor comes from the device"
-	assert_eq "6.12.28-lazyos" "$KERNEL_RELEASE" "release is version plus CONFIG_LOCALVERSION"
+	assert_eq "6.12.28-hayato" "$KERNEL_RELEASE" "release is version plus CONFIG_LOCALVERSION"
 	assert_eq "768" "$BOOT_SIZE_MIB" "boot size comes from deviceinfo"
 	assert_eq "vfat" "$BOOT_FS" "boot filesystem comes from deviceinfo"
 	assert_contains "$KERNEL_CMDLINE" "quiet" "device kernel cmdline is read"
@@ -60,7 +60,7 @@ make_device "$REPO_BAD" mock-bad uefi mips
 out="$(
 	(
 		export BUILD_ROOT="$TMP/build-bad"
-		export LAZYOS_DEVICES_DIR="$REPO_BAD"
+		export HAYATO_DEVICES_DIR="$REPO_BAD"
 		export DEVICE=mock-bad
 		# shellcheck disable=SC1091
 		. "$ROOT/scripts/lib.sh"
@@ -77,7 +77,7 @@ for dev in _template zzz aaa; do
 done
 (
 	export BUILD_ROOT="$TMP/build-pick"
-	export LAZYOS_DEVICES_DIR="$REPO_PICK"
+	export HAYATO_DEVICES_DIR="$REPO_PICK"
 	unset DEVICE
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/lib.sh"
@@ -91,7 +91,7 @@ make_device "$REPO_DEFAULT" aaa extlinux aarch64
 make_device "$REPO_DEFAULT" google-asurada depthcharge aarch64
 (
 	export BUILD_ROOT="$TMP/build-default"
-	export LAZYOS_DEVICES_DIR="$REPO_DEFAULT"
+	export HAYATO_DEVICES_DIR="$REPO_DEFAULT"
 	unset DEVICE
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/lib.sh"
@@ -111,7 +111,7 @@ mkdir -p "$TMP/deb-root/lib/modules/7.2.9+deb14-arm64" \
 	"$TMP/deb-root/lib/modules/7.2.10+deb14-arm64"
 (
 	export BUILD_ROOT="$TMP/build-deb"
-	export LAZYOS_DEVICES_DIR="$REPO_DEB"
+	export HAYATO_DEVICES_DIR="$REPO_DEB"
 	export DEVICE=mock-deb
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/lib.sh"
@@ -126,7 +126,7 @@ mkdir -p "$TMP/deb-root/lib/modules/7.2.9+deb14-arm64" \
 # --- resolve_kernel_release refuses an empty /lib/modules -----------------
 (
 	export BUILD_ROOT="$TMP/build-empty"
-	export LAZYOS_DEVICES_DIR="$REPO_DEB"
+	export HAYATO_DEVICES_DIR="$REPO_DEB"
 	export DEVICE=mock-deb
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/lib.sh"
@@ -137,12 +137,12 @@ assert_eq "1" "$?" "resolve_kernel_release fails when no kernel is installed"
 
 # --- _boot_build_cmdline strips comments and normalises whitespace --------
 CMDLINE_ROOT="$TMP/cmdline-root"
-mkdir -p "$CMDLINE_ROOT/etc/lazyos"
+mkdir -p "$CMDLINE_ROOT/etc/hayato"
 printf '# host-specific comment\nquiet   loglevel=2\n  root=PARTUUID=1111\n' \
-	>"$CMDLINE_ROOT/etc/lazyos/kernel-cmdline.conf"
+	>"$CMDLINE_ROOT/etc/hayato/kernel-cmdline.conf"
 (
 	export BUILD_ROOT="$TMP/build-cmdline"
-	export LAZYOS_DEVICES_DIR="$REPO_A"
+	export HAYATO_DEVICES_DIR="$REPO_A"
 	export DEVICE=mock-depth
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/lib.sh"
@@ -165,7 +165,7 @@ printf 'stale\n' >"$SYNC_DST/stale-root"
 printf 'stale\n' >"$SYNC_DST/boot/stale-boot"
 (
 	export BUILD_ROOT="$TMP/build-sync"
-	export LAZYOS_ALLOW_NO_DEVICE=1
+	export HAYATO_ALLOW_NO_DEVICE=1
 	unset DEVICE DEVICE_DIR
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/lib.sh"

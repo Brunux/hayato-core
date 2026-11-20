@@ -1,12 +1,12 @@
 #!/bin/bash
-# Modular health report for LazyOS (dispatches core, device, and desktop witnesses).
+# Modular health report for Hayato (dispatches core, device, and desktop witnesses).
 #
 # Usage:
 #   check-system.sh [REPO_OR_UMBRELLA_DIR]
 #   check-system.sh --summary [REPO_OR_UMBRELLA_DIR]
 #   check-system.sh --help
 #
-# Works both on a live system (from /usr/libexec/lazyos/check/{10-core,20-device,30-desktop}.sh)
+# Works both on a live system (from /usr/libexec/hayato/check/{10-core,20-device,30-desktop}.sh)
 # and against an umbrella or sibling development checkout.
 set -u
 
@@ -42,25 +42,25 @@ CORE_REPO=""
 DEVICES_REPO=""
 DESKTOP_REPO=""
 
-for _cand in "${LAZYOS_CORE_DIR:-}" "$REPO/core" "$REPO" "$_self/.." "$_self/../../lazyos-core"; do
+for _cand in "${HAYATO_CORE_DIR:-}" "$REPO/core" "$REPO" "$_self/.." "$_self/../../hayato-core"; do
 	[ -n "$_cand" ] && [ -f "$_cand/scripts/check-core.sh" ] && CORE_REPO="$(cd "$_cand" && pwd)" && break
 done
-for _cand in "${LAZYOS_DEVICES_DIR:-}" "$REPO/devices" "$REPO/../devices" "$REPO/../lazyos-devices" "$_self/../../lazyos-devices"; do
+for _cand in "${HAYATO_DEVICES_DIR:-}" "$REPO/devices" "$REPO/../devices" "$REPO/../hayato-devices" "$_self/../../hayato-devices"; do
 	[ -n "$_cand" ] && [ -d "$_cand/devices" ] && DEVICES_REPO="$(cd "$_cand" && pwd)" && break
 done
-for _cand in "${LAZYOS_DESKTOP_DIR:-}" "$REPO/desktop" "$REPO" "$REPO/../desktop" "$REPO/../lazyos-desktop" "$_self/../../lazyos-desktop"; do
+for _cand in "${HAYATO_DESKTOP_DIR:-}" "$REPO/desktop" "$REPO" "$REPO/../desktop" "$REPO/../hayato-desktop" "$_self/../../hayato-desktop"; do
 	[ -n "$_cand" ] && [ -d "$_cand/uis" ] && DESKTOP_REPO="$(cd "$_cand" && pwd)" && break
 done
 
 if [ -n "$DESKTOP_REPO" ]; then
-	if [ -x "$DESKTOP_REPO/rust/target/release/lazyos" ]; then
+	if [ -x "$DESKTOP_REPO/rust/target/release/hayato" ]; then
 		PATH="$DESKTOP_REPO/rust/target/release:$PATH"
-	elif [ -x "$DESKTOP_REPO/rust/target/debug/lazyos" ]; then
+	elif [ -x "$DESKTOP_REPO/rust/target/debug/hayato" ]; then
 		PATH="$DESKTOP_REPO/rust/target/debug:$PATH"
 	fi
 fi
 
-DEVICE="${DEVICE:-$(tr -d ' \t\r\n' </etc/lazyos/device 2>/dev/null || true)}"
+DEVICE="${DEVICE:-$(tr -d ' \t\r\n' </etc/hayato/device 2>/dev/null || true)}"
 [ -n "$DEVICE" ] || DEVICE="google-asurada"
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
@@ -99,7 +99,7 @@ check_svc() {
 	else warn "$u is not active"; fi
 }
 
-SETTINGS_ROWS="$(lazyos menu settings --rows 2>/dev/null || true)"
+SETTINGS_ROWS="$(hayato menu settings --rows 2>/dev/null || true)"
 settings_runs() { awk -F'\t' -v want="$1" '$3 == want { found = 1 } END { exit !found }' <<<"$SETTINGS_ROWS"; }
 
 export _CHECK_SYSTEM_SOURCED=1
@@ -121,9 +121,9 @@ _core_fallback="${CORE_REPO:+$CORE_REPO/scripts/check-core.sh}"
 _device_fallback="${DEVICES_REPO:+$DEVICES_REPO/devices/$DEVICE/check-device.sh}"
 _desktop_fallback="${DESKTOP_REPO:+$DESKTOP_REPO/scripts/check-desktop.sh}"
 
-_run_hook "core"    "/usr/libexec/lazyos/check/10-core.sh"    "$_core_fallback"
-_run_hook "device"  "/usr/libexec/lazyos/check/20-device.sh"  "$_device_fallback"
-_run_hook "desktop" "/usr/libexec/lazyos/check/30-desktop.sh" "$_desktop_fallback"
+_run_hook "core"    "/usr/libexec/hayato/check/10-core.sh"    "$_core_fallback"
+_run_hook "device"  "/usr/libexec/hayato/check/20-device.sh"  "$_device_fallback"
+_run_hook "desktop" "/usr/libexec/hayato/check/30-desktop.sh" "$_desktop_fallback"
 
 # ---------------------------------------------------------------------------
 section "Declared packages"

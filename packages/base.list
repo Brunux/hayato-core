@@ -47,7 +47,7 @@ openssh-server
 e2fsprogs
 dosfstools
 parted
-# rsync: `lazyos installer` (and fallback install-emmc.sh) copies the running
+# rsync: `hayato installer` (and fallback install-emmc.sh) copies the running
 # system to internal storage with it, so it must exist on the device.
 rsync
 

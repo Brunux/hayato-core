@@ -3,7 +3,7 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-: "${HOSTNAME:=lazyos}"
+: "${HOSTNAME:=hayato}"
 : "${USERNAME:=brunux}"
 : "${USERPASS:=debian}"
 : "${DEBIAN_SUITE:=forky}"
@@ -63,7 +63,7 @@ unset _pair _name _target
 
 # imv installs no /usr/bin/imv either: Debian's package ships imv-wayland and
 # imv-x11 plus a /usr/libexec/imv/imv wrapper that picks one from
-# $WAYLAND_DISPLAY. rofi-files, lazyos-view and xdg-open all call `imv`, and so
+# $WAYLAND_DISPLAY. rofi-files, hayato-view and xdg-open all call `imv`, and so
 # does anyone typing it, so the short name is a symlink to the package's own
 # dispatcher rather than a guess at which backend this session runs.
 if [ -x /usr/libexec/imv/imv ]; then
@@ -132,21 +132,21 @@ EOF
 # brand disappears instead of trusting this line to have been the last word.
 rm -f /etc/os-release
 cat >/etc/os-release <<EOF
-PRETTY_NAME="LazyOS $VERSION"
-NAME="LazyOS"
+PRETTY_NAME="Hayato $VERSION"
+NAME="Hayato"
 VERSION_ID="$VERSION"
-VERSION="LazyOS $VERSION"
-ID=lazyos
+VERSION="Hayato $VERSION"
+ID=hayato
 ID_LIKE=debian
-HOME_URL="https://github.com/Brunux/LazyOS"
-BUG_REPORT_URL="https://github.com/Brunux/LazyOS/issues"
-LOGO=lazyos
+HOME_URL="https://github.com/Brunux/Hayato"
+BUG_REPORT_URL="https://github.com/Brunux/Hayato/issues"
+LOGO=hayato
 EOF
 
 # The virtual terminals' banner: agetty expands \n (node name) and \l (line).
 # greetd owns vt 7, so the gettys on vt 1-6 are the ones that show this.
 cat >/etc/issue <<EOF
-LazyOS $VERSION · lazy by design
+Hayato $VERSION · lazy by design
 \n · \l
 EOF
 
@@ -155,7 +155,7 @@ if ! id "$USERNAME" >/dev/null 2>&1; then
 	# plugdev is for the udev auto-mount helper: it mounts a plugged USB drive
 	# as this user (a root mount would be /run/media/root with uid=0 on vfat),
 	# and polkit authorizes a session-less caller by its *group* -
-	# /etc/polkit-1/rules.d/49-lazyos-automount.rules names plugdev and nothing
+	# /etc/polkit-1/rules.d/49-hayato-automount.rules names plugdev and nothing
 	# else. The group ships with base-passwd (gid 46); without the membership
 	# the rule matches nobody and a plugged stick stays unmounted.
 	useradd -m -s /bin/bash -G sudo,video,audio,input,render,netdev,plugdev "$USERNAME"
@@ -191,7 +191,7 @@ log "System tuning for this device (see docs/optimization.md)"
 # 3) vm.watermark_boost_factor=15000 started kswapd churn during allocation bursts; 0
 #    stops it.
 # Plus lz4 (~1 us decompress on an A76, and no zstd trade on the in-order A55s) and
-# the MMC interrupts moved off CPU0 (lazyos-irq-balance), so swap-in never competes
+# the MMC interrupts moved off CPU0 (hayato-irq-balance), so swap-in never competes
 # with the ChromeOS EC that reads the keyboard.
 #
 # No zram-resident-limit, deliberately. It reads like the valve for incompressible
@@ -253,28 +253,28 @@ EOF
 # exit}` therefore selected the card-detect EINT, whose affinity is not
 install -d /usr/local/sbin
 
-if [ -d /tmp/lazyos-etc ]; then
-	install -d -m 755 /etc/lazyos
-	( cd /tmp/lazyos-etc && cp -a . /etc/lazyos/ )
-	chmod 644 /etc/lazyos/device /etc/lazyos/deviceinfo /etc/lazyos/kernel-cmdline.conf 2>/dev/null || true
+if [ -d /tmp/hayato-etc ]; then
+	install -d -m 755 /etc/hayato
+	( cd /tmp/hayato-etc && cp -a . /etc/hayato/ )
+	chmod 644 /etc/hayato/device /etc/hayato/deviceinfo /etc/hayato/kernel-cmdline.conf 2>/dev/null || true
 fi
 
-if [ -d /tmp/lazyos-runtime ]; then
-	install -d -m 755 /usr/libexec/lazyos
-	( cd /tmp/lazyos-runtime && cp -a . /usr/libexec/lazyos/ )
-	chmod 755 /usr/libexec/lazyos/*.sh 2>/dev/null || true
-	chmod 755 /usr/libexec/lazyos/boot/*.sh 2>/dev/null || true
-	chmod 755 /usr/libexec/lazyos/check/*.sh 2>/dev/null || true
-	ln -sfn /usr/libexec/lazyos/check-system.sh /usr/local/sbin/check-system.sh
+if [ -d /tmp/hayato-runtime ]; then
+	install -d -m 755 /usr/libexec/hayato
+	( cd /tmp/hayato-runtime && cp -a . /usr/libexec/hayato/ )
+	chmod 755 /usr/libexec/hayato/*.sh 2>/dev/null || true
+	chmod 755 /usr/libexec/hayato/boot/*.sh 2>/dev/null || true
+	chmod 755 /usr/libexec/hayato/check/*.sh 2>/dev/null || true
+	ln -sfn /usr/libexec/hayato/check-system.sh /usr/local/sbin/check-system.sh
 fi
 
 _boot_type="${BOOT_TYPE:-}"
-if [ -z "$_boot_type" ] && [ -r /etc/lazyos/deviceinfo ]; then
-	_boot_type="$(sed -n 's/^deviceinfo_boot_type="\([^"]*\)"$/\1/p' /etc/lazyos/deviceinfo | head -n1)"
+if [ -z "$_boot_type" ] && [ -r /etc/hayato/deviceinfo ]; then
+	_boot_type="$(sed -n 's/^deviceinfo_boot_type="\([^"]*\)"$/\1/p' /etc/hayato/deviceinfo | head -n1)"
 fi
 if [ "${_boot_type:-depthcharge}" != "depthcharge" ]; then
 	install -d /etc/kernel/postinst.d
-	cat >/etc/kernel/postinst.d/zz-lazyos-boot <<'EOF'
+	cat >/etc/kernel/postinst.d/zz-hayato-boot <<'EOF'
 #!/bin/sh
 # Sync Debian-packaged DTBs and refresh systemd-boot / extlinux after apt kernel upgrades.
 set -eu
@@ -289,11 +289,11 @@ _pid1_id="$(stat -Lc %d:%i /proc/1/root 2>/dev/null || true)"
 if [ -n "$_root_id" ] && [ -n "$_pid1_id" ] && [ "$_root_id" != "$_pid1_id" ]; then
 	exit 0
 fi
-if [ -x /usr/libexec/lazyos/install-boot.sh ] && findmnt -n -o UUID / >/dev/null 2>&1; then
-	CONFIRM=yes /usr/libexec/lazyos/install-boot.sh
+if [ -x /usr/libexec/hayato/install-boot.sh ] && findmnt -n -o UUID / >/dev/null 2>&1; then
+	CONFIRM=yes /usr/libexec/hayato/install-boot.sh
 fi
 EOF
-	chmod 0755 /etc/kernel/postinst.d/zz-lazyos-boot
+	chmod 0755 /etc/kernel/postinst.d/zz-hayato-boot
 fi
 
 log "Enabling services"
@@ -334,15 +334,15 @@ if [ -f "$PKGDIR/$UI.list" ] && [ "$UI" = "sway" ]; then
 	# vt 7: Debian's greetd.service declares Conflicts=getty@tty7.service, so it
 	# expects to own tty7; on vt 1 it collides with getty@tty1.
 	#
-	# `/var/lib/lazyos/greeter` stores remembered username, session, and theme
-	# state for the native `lazyos-greeter` (spec 021), owned by `_greetd`.
-	install -d -o "$GREETD_USER" -g "$GREETD_USER" -m 0755 /var/lib/lazyos/greeter
+	# `/var/lib/hayato/greeter` stores remembered username, session, and theme
+	# state for the native `hayato-greeter` (spec 021), owned by `_greetd`.
+	install -d -o "$GREETD_USER" -g "$GREETD_USER" -m 0755 /var/lib/hayato/greeter
 	cat >/etc/greetd/config.toml <<EOF
 [terminal]
 vt = 7
 
 [default_session]
-command = "/usr/bin/lazyos-greeter --session"
+command = "/usr/bin/hayato-greeter --session"
 user = "$GREETD_USER"
 EOF
 
@@ -425,8 +425,8 @@ if [ -d /tmp/ui-files ]; then
 			warn "fc-cache failed: the first font lookup will walk every font directory"
 	fi
 	if command -v gtk-update-icon-cache >/dev/null 2>&1 &&
-		[ -d /usr/share/icons/LazyOS ]; then
-		gtk-update-icon-cache -q -t -f /usr/share/icons/LazyOS 2>/dev/null ||
+		[ -d /usr/share/icons/Hayato ]; then
+		gtk-update-icon-cache -q -t -f /usr/share/icons/Hayato 2>/dev/null ||
 			warn "gtk-update-icon-cache failed: the first launcher scan will walk the theme"
 	fi
 	# A script without the execute bit is the quietest bug in this tree: it is
