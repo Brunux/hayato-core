@@ -56,7 +56,8 @@ DIST_EXCLUDES='
 /home/*/.local/share/opencode/
 /home/*/.local/state/opencode/
 /home/*/.cache/opencode/
-/home/*/.config/opencode/
+/home/*/.config/opencode/service.json
+/home/*/.config/opencode/auth.json
 /var/log/bootstrap.log
 /var/cache/apt/archives/*.deb
 /var/cache/apt/archives/partial/
@@ -85,9 +86,13 @@ dist_sanitize() {
 	install -d -m700 -o root -g root "$_d/etc/NetworkManager/system-connections"
 	install -d -m700 -o root -g root "$_d/var/lib/NetworkManager"
 	rm -rf "${_d:?}"/home/*/.cache/debian-aarch64
-	# The shipped agent's state, sign-ins included (see the header).
+	# The shipped agent's state, sign-ins included (see the header). The
+	# configuration itself stays: opencode.json registers hayato mcp and
+	# AGENTS.md carries the manifest pin, both written by this tree. Only the
+	# files a signed-in run creates are stripped.
 	rm -rf "${_d:?}"/home/*/.local/share/opencode "${_d:?}"/home/*/.local/state/opencode
-	rm -rf "${_d:?}"/home/*/.cache/opencode "${_d:?}"/home/*/.config/opencode
+	rm -rf "${_d:?}"/home/*/.cache/opencode
+	rm -f "${_d:?}"/home/*/.config/opencode/service.json "${_d:?}"/home/*/.config/opencode/auth.json
 
 	rm -f "$_d"/etc/ssh/ssh_host_*
 	: >"$_d/etc/machine-id"

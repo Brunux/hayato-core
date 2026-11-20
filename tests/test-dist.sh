@@ -52,7 +52,8 @@ for pattern in \
 	'/etc/ssh/ssh_host_*' \
 	'/etc/machine-id' \
 	'/home/*/.local/share/opencode/' \
-	'/home/*/.config/opencode/'; do
+	'/home/*/.config/opencode/service.json' \
+	'/home/*/.config/opencode/auth.json'; do
 	assert_true "excludes $pattern" grep -qxF "$pattern" "$EXCLUDES"
 done
 
@@ -86,6 +87,9 @@ printf 'db\n' >"$SAN/home/b/.local/share/opencode/opencode.db"
 printf 'db\n' >"$SAN/home/b/.local/state/opencode/state.db"
 printf 'db\n' >"$SAN/home/b/.cache/opencode/cache.db"
 printf '{}\n' >"$SAN/home/b/.config/opencode/opencode.json"
+printf '# rules\n' >"$SAN/home/b/.config/opencode/AGENTS.md"
+printf '{"password":"x"}\n' >"$SAN/home/b/.config/opencode/service.json"
+printf '{"token":"x"}\n' >"$SAN/home/b/.config/opencode/auth.json"
 printf 'log\n' >"$SAN/var/log/bootstrap.log"
 printf 'repo\n' >"$SAN/tmp/repo/file"
 
@@ -108,7 +112,10 @@ assert_false "the build cache is gone" test -e "$SAN/home/b/.cache/debian-aarch6
 assert_false "the OpenCode database is gone" test -e "$SAN/home/b/.local/share/opencode"
 assert_false "the OpenCode state is gone" test -e "$SAN/home/b/.local/state/opencode"
 assert_false "the OpenCode cache is gone" test -e "$SAN/home/b/.cache/opencode"
-assert_false "the OpenCode config is gone" test -e "$SAN/home/b/.config/opencode"
+assert_true "the OpenCode registration stays" test -f "$SAN/home/b/.config/opencode/opencode.json"
+assert_true "the agent instructions stay" test -f "$SAN/home/b/.config/opencode/AGENTS.md"
+assert_false "the OpenCode service password is gone" test -e "$SAN/home/b/.config/opencode/service.json"
+assert_false "the OpenCode auth file is gone" test -e "$SAN/home/b/.config/opencode/auth.json"
 assert_false "the bootstrap log is gone" test -e "$SAN/var/log/bootstrap.log"
 assert_false "the copied repository is gone" test -e "$SAN/tmp/repo"
 

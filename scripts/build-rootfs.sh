@@ -4,6 +4,11 @@
 # Device: env DEVICE (default: the only one under devices/).
 # Requires root (re-execs itself through sudo).
 set -euo pipefail
+# Debian's debootstrap and every `install -d` below inherit the caller's umask.
+# A desktop user's 0002 would make /, /etc and /usr 0775 in the image, and
+# systemd-tmpfiles-setup requires the 0755 the FHS names; the build states it
+# rather than trusting the shell it runs in.
+umask 022
 . "$(dirname "$0")/lib.sh"
 
 UI="${UI:-sway}"

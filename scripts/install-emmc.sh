@@ -57,6 +57,7 @@ rsync -aHAX --delete \
 	--exclude=/proc --exclude=/sys --exclude=/dev --exclude=/run \
 	--exclude=/mnt --exclude=/media --exclude="$MNT" --exclude="$WORK_DIR" \
 	--exclude=/tmp/* --exclude=/var/tmp/* \
+	--include=/var/cache/fontconfig/ --include=/var/cache/fontconfig/** \
 	--exclude=/var/cache/* --exclude=/var/log/journal/* \
 	/ "$MNT"/
 

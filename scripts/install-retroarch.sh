@@ -52,6 +52,14 @@ else
 	cp "$HAYATO_STAGE"/retroarch_*.deb "$ROOTFS$STAGE_IN_CHROOT/"
 	cp "$HAYATO_STAGE"/hayato-libretro-mupen64plus-next_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
 	cp "$HAYATO_STAGE"/hayato-libretro-fbneo_*.deb "$ROOTFS$STAGE_IN_CHROOT/" 2>/dev/null || true
+	# The two cores are built by stage-desktop.sh. A stage that lost them would
+	# otherwise ship an image whose Games library answers "the core is missing"
+	# with no line in the build log: say it here, where the build is watched.
+	for _core_deb in "$HAYATO_STAGE"/hayato-libretro-mupen64plus-next_*.deb \
+		"$HAYATO_STAGE"/hayato-libretro-fbneo_*.deb; do
+		[ -f "$_core_deb" ] ||
+			warn "no $(basename "$_core_deb" .deb) package in $HAYATO_STAGE: this rootfs ships without that core (run stage-desktop.sh)"
+	done
 
 	mount --bind /dev "$ROOTFS/dev"
 	mount -t proc proc "$ROOTFS/proc"

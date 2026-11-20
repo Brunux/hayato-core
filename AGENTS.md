@@ -62,6 +62,12 @@ partitions by `PARTN` + `PARTLABEL`, refuse mounted targets via `findmnt -rn -S`
 - `make-release.sh` must strip host secrets, Wi-Fi PSKs, SSH host keys, `machine-id`, and build caches
   via `lib-dist.sh` before producing the sanitized `<device>.img.xz` release image and `SHA256SUMS`.
   Keep `core/VERSION` synced with `desktop/VERSION` on releases.
+- The agent's configuration is product, not state: keep `/home/*/.config/opencode/opencode.json` and
+  `AGENTS.md`, and strip only `service.json`/`auth.json`. Excluding the whole directory shipped an
+  image whose OpenCode never started `hayato mcp`.
+- The build states `umask 022` (`build.sh`, `build-rootfs.sh`): a desktop user's `0002` reaches
+  debootstrap and makes `/`, `/etc` and `/usr` `0775`, which `systemd-tmpfiles-setup` refuses to
+  accept as the FHS layout.
 
 ## Tests (`tests/`)
 - `bash tests/run.sh` runs the dependency-free shell suites for `lib.sh` (device discovery, kernel

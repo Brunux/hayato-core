@@ -11,6 +11,9 @@
 #
 # To write the result to a microSD/USB device, run scripts/write-sd.sh.
 set -euo pipefail
+# The pipeline creates the work tree, the stages and the image; state the mode
+# the filesystem expects instead of inheriting a desktop user's 0002.
+umask 022
 . "$(dirname "$0")/lib.sh"
 
 require_devices
