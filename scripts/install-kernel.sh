@@ -10,8 +10,8 @@ set -euo pipefail
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" KERNEL_STAGE="$KERNEL_STAGE" \
 		KERNEL_SOURCE_TYPE="${KERNEL_SOURCE_TYPE:-source}" KERNEL_RELEASE="${KERNEL_RELEASE:-}" \
-		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
-		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
+		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "${1:-}"
 fi
 

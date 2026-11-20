@@ -2,7 +2,7 @@
 # Update boot configuration / partition on the running system according to BOOT_TYPE.
 # Dispatches to depthcharge (install-kpart.sh), uefi (boot/uefi.sh), or extlinux (boot/extlinux.sh).
 #
-# Usage: CONFIRM=yes /usr/libexec/lazyos/install-boot.sh [ARGS...]
+# Usage: CONFIRM=yes /usr/libexec/hayato/install-boot.sh [ARGS...]
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 . "$BOOT_BACKEND"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ChromeOS Depthcharge boot backend (cgpt + depthchargectl signed FIT kpart).
-# Implements the uniform lazyos-core boot_* interface over scripts/lib-cgpt.sh.
+# Implements the uniform hayato-core boot_* interface over scripts/lib-cgpt.sh.
 
 . "$CORE_DIR/scripts/lib-cgpt.sh"
 

@@ -19,8 +19,8 @@ BLOCK="${DEVICE_BLOCK:-${deviceinfo_install_target:-/dev/mmcblk0}}"
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" DEVICE_BLOCK="$BLOCK" \
 		BOOT_SIZE_MIB="$BOOT_SIZE_MIB" BOOT_FS="$BOOT_FS" CONFIRM="${CONFIRM:-}" \
-		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
-		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
+		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "$@"
 fi
 
@@ -100,7 +100,7 @@ if [ "$BOOT_TYPE" = "depthcharge" ]; then
 	log "  This firmware shows a developer-mode menu instead of the Ctrl+D/Ctrl+U screen:"
 	log "  'internal disk' is the eMMC, 'external disk' is the microSD. With the card out"
 	log "  the internal one is the only choice; with the card in, pick it in the menu."
-	log "  After a kernel update on the eMMC system, run /usr/libexec/lazyos/install-boot.sh there."
+	log "  After a kernel update on the eMMC system, run /usr/libexec/hayato/install-boot.sh there."
 	cgpt show "$BLOCK"
 else
 	log "Done. Remove installation media and reboot into $BOOT_TYPE storage on $BLOCK."

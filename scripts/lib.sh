@@ -1,12 +1,12 @@
 #!/bin/bash
-# Common environment, paths, sub-project discovery, and helpers for lazyos-core scripts.
+# Common environment, paths, sub-project discovery, and helpers for hayato-core scripts.
 # Sourced by every script; does not execute anything directly.
 
 [ -n "${_LIB_SH_LOADED:-}" ] && return 0
 _LIB_SH_LOADED=1
 
 # Logging helpers
-log()  { printf '\033[1;34m[lazyos]\033[0m %s\n' "$*"; }
+log()  { printf '\033[1;34m[hayato]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[fail]\033[0m %s\n' "$*" >&2; exit 1; }
 need_root() { [ "$(id -u)" -eq 0 ] || die "this command must run as root (use sudo)"; }
@@ -14,8 +14,8 @@ need_root() { [ "$(id -u)" -eq 0 ] || die "this command must run as root (use su
 CORE_DIR="${CORE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 _PARENT_DIR="$(cd "$CORE_DIR/.." && pwd)"
 
-if [ -n "${LAZYOS_ROOT_DIR:-}" ]; then
-	REPO_DIR="$LAZYOS_ROOT_DIR"
+if [ -n "${HAYATO_ROOT_DIR:-}" ]; then
+	REPO_DIR="$HAYATO_ROOT_DIR"
 elif [ -f "$_PARENT_DIR/.gitmodules" ] || { [ -d "$_PARENT_DIR/desktop" ] && [ -d "$_PARENT_DIR/devices" ]; }; then
 	REPO_DIR="$_PARENT_DIR"
 else
@@ -30,8 +30,8 @@ _find_subrepo() {
 	return 1
 }
 
-DEVICES_REPO="${DEVICES_REPO:-$(_find_subrepo "${LAZYOS_DEVICES_DIR:-}" devices lazyos-devices devices || true)}"
-DESKTOP_REPO="${DESKTOP_REPO:-$(_find_subrepo "${LAZYOS_DESKTOP_DIR:-}" desktop lazyos-desktop uis || true)}"
+DEVICES_REPO="${DEVICES_REPO:-$(_find_subrepo "${HAYATO_DEVICES_DIR:-}" devices hayato-devices devices || true)}"
+DESKTOP_REPO="${DESKTOP_REPO:-$(_find_subrepo "${HAYATO_DESKTOP_DIR:-}" desktop hayato-desktop uis || true)}"
 
 # Working paths on the build host.
 # Under sudo without -E, HOME becomes /root; keep BUILD_ROOT tied to SUDO_USER's home.
@@ -56,8 +56,8 @@ WIFI_DIR="${WIFI_DIR:-$BUILD_ROOT/wifi}"
 # Device selection (skips _template when discovering boards).
 if [ -n "${DEVICES_DIR:-}" ] && [ -d "$DEVICES_DIR" ]; then
 	if [ -z "${DEVICE:-}" ]; then
-		if [ -f /etc/lazyos/device ] && [ -d "$DEVICES_DIR/$(tr -d ' \t\r\n' </etc/lazyos/device)" ]; then
-			DEVICE="$(tr -d ' \t\r\n' </etc/lazyos/device)"
+		if [ -f /etc/hayato/device ] && [ -d "$DEVICES_DIR/$(tr -d ' \t\r\n' </etc/hayato/device)" ]; then
+			DEVICE="$(tr -d ' \t\r\n' </etc/hayato/device)"
 		elif [ -d "$DEVICES_DIR/google-asurada" ]; then
 			DEVICE="google-asurada"
 		else
@@ -69,16 +69,16 @@ if [ -n "${DEVICES_DIR:-}" ] && [ -d "$DEVICES_DIR" ]; then
 	[ -d "$DEVICE_DIR" ] || die "unknown device '$DEVICE' (see $DEVICES_DIR)"
 	# shellcheck disable=SC1090
 	. "$DEVICE_DIR/deviceinfo"
-elif [ -f /etc/lazyos/deviceinfo ]; then
-	DEVICE="${DEVICE:-$(tr -d ' \t\r\n' </etc/lazyos/device 2>/dev/null || echo runtime)}"
-	DEVICE_DIR="/etc/lazyos"
+elif [ -f /etc/hayato/deviceinfo ]; then
+	DEVICE="${DEVICE:-$(tr -d ' \t\r\n' </etc/hayato/device 2>/dev/null || echo runtime)}"
+	DEVICE_DIR="/etc/hayato"
 	# shellcheck disable=SC1091
-	. /etc/lazyos/deviceinfo
-elif [ "${LAZYOS_ALLOW_NO_DEVICE:-0}" = 1 ]; then
+	. /etc/hayato/deviceinfo
+elif [ "${HAYATO_ALLOW_NO_DEVICE:-0}" = 1 ]; then
 	DEVICE="${DEVICE:-generic}"
 	DEVICE_DIR=""
 else
-	die "no lazyos-devices checkout or /etc/lazyos/deviceinfo found (set LAZYOS_DEVICES_DIR)"
+	die "no hayato-devices checkout or /etc/hayato/deviceinfo found (set HAYATO_DEVICES_DIR)"
 fi
 
 BOOT_TYPE="${deviceinfo_boot_type:-depthcharge}"
@@ -167,7 +167,7 @@ resolve_kernel_release() {
 COMPOSITOR="${COMPOSITOR:-swayfx}"
 WORKSTYLE="workstyle"
 OPENCODE="opencode"
-LAZYOS_STAGE="$WORK_DIR/lazyos-stage"
+HAYATO_STAGE="$WORK_DIR/hayato-stage"
 
 if [ -n "${DESKTOP_REPO:-}" ] && [ -d "$DESKTOP_REPO" ]; then
 	COMPOSITOR_DIR="$DESKTOP_REPO/compositors/$COMPOSITOR"
@@ -214,17 +214,17 @@ fi
 
 require_compositor() {
 	[ -n "${COMPOSITOR_DIR:-}" ] && [ -d "$COMPOSITOR_DIR" ] ||
-		die "compositor '$COMPOSITOR' not found (set LAZYOS_DESKTOP_DIR or place lazyos-desktop alongside lazyos-core)"
+		die "compositor '$COMPOSITOR' not found (set HAYATO_DESKTOP_DIR or place hayato-desktop alongside hayato-core)"
 }
 
 require_desktop() {
 	[ -n "${DESKTOP_REPO:-}" ] && [ -d "$DESKTOP_REPO" ] ||
-		die "lazyos-desktop checkout not found (set LAZYOS_DESKTOP_DIR or place lazyos-desktop alongside lazyos-core)"
+		die "hayato-desktop checkout not found (set HAYATO_DESKTOP_DIR or place hayato-desktop alongside hayato-core)"
 }
 
 require_devices() {
 	[ -n "${DEVICES_REPO:-}" ] && [ -d "$DEVICES_REPO" ] ||
-		die "lazyos-devices checkout not found (set LAZYOS_DEVICES_DIR or place lazyos-devices alongside lazyos-core)"
+		die "hayato-devices checkout not found (set HAYATO_DEVICES_DIR or place hayato-devices alongside hayato-core)"
 }
 
 build_deb() {
@@ -237,7 +237,7 @@ build_deb() {
 		printf 'Package: %s\n' "$name"
 		printf 'Version: %s\n' "$version"
 		printf 'Architecture: %s\n' "$arch"
-		printf 'Maintainer: %s\n' "LazyOS builder <builder@localhost>"
+		printf 'Maintainer: %s\n' "Hayato builder <builder@localhost>"
 		printf 'Installed-Size: %s\n' "$size"
 		if [ -n "$depends" ]; then printf 'Depends: %s\n' "$depends"; fi
 		printf 'Section: x11\n'
@@ -327,8 +327,8 @@ KPART="${KPART:-$WORK_DIR/$DEVICE.vmlinuz.kpart}"
 
 _boot_build_cmdline() {
 	local rootfs="${1:-/}" extra="${2:-}" base=""
-	if [ -r "$rootfs/etc/lazyos/kernel-cmdline.conf" ]; then
-		base="$(grep -v '^[[:space:]]*#' "$rootfs/etc/lazyos/kernel-cmdline.conf" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g;s/^ //;s/ $//')"
+	if [ -r "$rootfs/etc/hayato/kernel-cmdline.conf" ]; then
+		base="$(grep -v '^[[:space:]]*#' "$rootfs/etc/hayato/kernel-cmdline.conf" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g;s/^ //;s/ $//')"
 	elif [ -n "${KERNEL_CMDLINE:-}" ]; then
 		base="$(printf '%s' "$KERNEL_CMDLINE" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g;s/^ //;s/ $//')"
 	fi
@@ -361,6 +361,6 @@ export BOOT_TYPE BOOT_BACKEND BOOT_SIZE_MIB BOOT_FS IMAGE_SIZE_MIB DTB_GLOB
 export UI UIS_DIR UI_DIR PACKAGES_DIR WIFI_DIR
 export COMPOSITOR COMPOSITOR_DIR COMPOSITOR_VERSION COMPOSITOR_STAGE
 export WORKSTYLE WORKSTYLE_DIR WORKSTYLE_VERSION WORKSTYLE_STAGE
-export LAZYOS_STAGE OPENCODE OPENCODE_DIR OPENCODE_VERSION OPENCODE_TARBALL OPENCODE_URL
+export HAYATO_STAGE OPENCODE OPENCODE_DIR OPENCODE_VERSION OPENCODE_TARBALL OPENCODE_URL
 export EDITXR EDITXR_DIR EDITXR_VERSION EDITXR_TARBALL EDITXR_URL
 export DEBIAN_SUITE DEBIAN_ARCH DEBIAN_MIRROR DEBIAN_COMPONENTS LOCALE TIMEZONE

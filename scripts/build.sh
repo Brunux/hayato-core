@@ -5,8 +5,8 @@
 #   kernel-stage-<flavor>/  built kernel, modules, dtbs
 #   swayfx-stage/           the compositor's .debs (scenefx + swayfx)
 #   workstyle-stage/        the workspace renamer's .deb
-#   lazyos-stage/           the session framework binary, lazyos-games and the game stack
-#   rootfs-<device>/        Debian rootfs with the kernel, compositor, workstyle and lazyos installed
+#   hayato-stage/           the session framework binary, hayato-games and the game stack
+#   rootfs-<device>/        Debian rootfs with the kernel, compositor, workstyle and hayato installed
 #   <device>.vmlinuz.kpart  signed depthcharge FIT kernel partition image
 #
 # To write the result to a microSD/USB device, run scripts/write-sd.sh.
@@ -25,15 +25,15 @@ if [ "${SKIP_DESKTOP_BUILD:-no}" != "yes" ]; then
 	"$DESKTOP_REPO/scripts/build-swayfx.sh"
 	# Debian packages no workspace renamer, and the bar's pills depend on it.
 	"$DESKTOP_REPO/scripts/build-workstyle.sh"
-	# The session framework (docs/plan-ui.md): one binary, built from lazyos-desktop's
+	# The session framework (docs/plan-ui.md): one binary, built from hayato-desktop's
 	# Rust workspace.
-	"$DESKTOP_REPO/scripts/build-lazyos.sh"
+	"$DESKTOP_REPO/scripts/build-hayato.sh"
 fi
 "$CORE_DIR/scripts/build-rootfs.sh"
 "$CORE_DIR/scripts/install-kernel.sh"
 "$CORE_DIR/scripts/install-swayfx.sh"
 "$CORE_DIR/scripts/install-workstyle.sh"
-"$CORE_DIR/scripts/install-lazyos.sh"
+"$CORE_DIR/scripts/install-hayato.sh"
 "$CORE_DIR/scripts/install-retroarch.sh"
 if [ "$BOOT_TYPE" = "depthcharge" ]; then
 	"$CORE_DIR/scripts/make-kpart.sh"

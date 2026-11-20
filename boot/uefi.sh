@@ -1,6 +1,6 @@
 #!/bin/bash
 # Standard UEFI EBBR boot backend (GPT EFI System Partition + ext4 root + systemd-boot).
-# Implements the uniform lazyos-core boot_* interface.
+# Implements the uniform hayato-core boot_* interface.
 
 UEFI_ESP_MIB="${deviceinfo_boot_size_mib:-256}"
 
@@ -42,9 +42,9 @@ boot_layout_create() {
 	local esp_end="$((1 + UEFI_ESP_MIB))MiB"
 	parted -s "$disk" \
 		mktable gpt \
-		mkpart lazyos_efi fat32 1MiB "$esp_end" \
+		mkpart hayato_efi fat32 1MiB "$esp_end" \
 		set 1 esp on \
-		mkpart lazyos_root ext4 "$esp_end" 100%
+		mkpart hayato_root ext4 "$esp_end" 100%
 	_uefi_wait_parts "$disk"
 	_uefi_parts "$disk"
 }
@@ -52,11 +52,11 @@ boot_layout_create() {
 boot_layout_mount() {
 	local disk="$1" mnt="$2"
 	_uefi_parts "$disk"
-	log "Formatting $EFI_PART (vfat, label LAZYOS_EFI)"
-	mkfs.vfat -F 32 -n LAZYOS_EFI "$EFI_PART" >/dev/null
+	log "Formatting $EFI_PART (vfat, label HAYATO_EFI)"
+	mkfs.vfat -F 32 -n HAYATO_EFI "$EFI_PART" >/dev/null
 	BOOT_UUID="$(blkid -s UUID -o value "$EFI_PART")"
-	log "Formatting $ROOT_PART (ext4, label lazyos_root)"
-	mkfs.ext4 -F -q -L lazyos_root "$ROOT_PART" >/dev/null
+	log "Formatting $ROOT_PART (ext4, label hayato_root)"
+	mkfs.ext4 -F -q -L hayato_root "$ROOT_PART" >/dev/null
 	ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART")"
 	[ -n "$BOOT_UUID" ] && [ -n "$ROOT_UUID" ] || die "could not read UEFI partition UUIDs on $disk"
 
@@ -95,17 +95,17 @@ boot_install() {
 
 	cmdline="$(_boot_build_cmdline "$rootfs" "$cmdline_extra")"
 
-	mkdir -p "$esp/lazyos" "$esp/loader/entries" "$esp/EFI/BOOT"
-	cp "$vmlinuz" "$esp/lazyos/vmlinuz-$rel"
-	cp "$initrd" "$esp/lazyos/initrd.img-$rel"
+	mkdir -p "$esp/hayato" "$esp/loader/entries" "$esp/EFI/BOOT"
+	cp "$vmlinuz" "$esp/hayato/vmlinuz-$rel"
+	cp "$initrd" "$esp/hayato/initrd.img-$rel"
 
 	if [ -n "${deviceinfo_dtb:-}" ] && [ -d "$rootfs/boot/dtbs" ]; then
 		local dtb_match
 		dtb_match="$(find "$rootfs/boot/dtbs" -type f -path "$rootfs/boot/dtbs/$deviceinfo_dtb" 2>/dev/null | head -n1 || true)"
 		if [ -n "$dtb_match" ]; then
 			dtb_rel="${dtb_match#"$rootfs/boot/dtbs/"}"
-			mkdir -p "$esp/lazyos/dtbs/$(dirname "$dtb_rel")"
-			cp "$dtb_match" "$esp/lazyos/dtbs/$dtb_rel"
+			mkdir -p "$esp/hayato/dtbs/$(dirname "$dtb_rel")"
+			cp "$dtb_match" "$esp/hayato/dtbs/$dtb_rel"
 		fi
 	elif [ -z "${deviceinfo_dtb:-}" ] && [ -d "$rootfs/boot/dtbs" ]; then
 		mkdir -p "$esp/dtb"
@@ -113,17 +113,17 @@ boot_install() {
 	fi
 
 	cat >"$esp/loader/loader.conf" <<'EOF'
-default lazyos.conf
+default hayato.conf
 timeout 1
 console-mode max
 EOF
 	{
-		printf 'title   LazyOS (%s)\n' "$rel"
-		printf 'linux   /lazyos/vmlinuz-%s\n' "$rel"
-		printf 'initrd  /lazyos/initrd.img-%s\n' "$rel"
-		[ -n "$dtb_rel" ] && printf 'devicetree /lazyos/dtbs/%s\n' "$dtb_rel"
+		printf 'title   Hayato (%s)\n' "$rel"
+		printf 'linux   /hayato/vmlinuz-%s\n' "$rel"
+		printf 'initrd  /hayato/initrd.img-%s\n' "$rel"
+		[ -n "$dtb_rel" ] && printf 'devicetree /hayato/dtbs/%s\n' "$dtb_rel"
 		printf 'options %s\n' "$cmdline"
-	} >"$esp/loader/entries/lazyos.conf"
+	} >"$esp/loader/entries/hayato.conf"
 
 	local efi_stub efi_found=0
 	for efi_stub in \
@@ -141,7 +141,7 @@ EOF
 	done
 	[ "$efi_found" -eq 1 ] ||
 		die "systemd-boot EFI binary not found under $rootfs/usr/lib/systemd/boot/efi/ (install systemd-boot-efi)"
-	log "UEFI boot entry written ($esp/loader/entries/lazyos.conf)"
+	log "UEFI boot entry written ($esp/loader/entries/hayato.conf)"
 }
 
 boot_update_running() {

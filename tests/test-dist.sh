@@ -62,8 +62,8 @@ mkdir -p \
 	"$SAN/etc/NetworkManager/system-connections" \
 	"$SAN/var/lib/NetworkManager" \
 	"$SAN/etc/ssh" \
-	"$SAN/etc/lazyos" \
-	"$SAN/var/lib/lazyos/greeter" \
+	"$SAN/etc/hayato" \
+	"$SAN/var/lib/hayato/greeter" \
 	"$SAN/var/lib/dbus" \
 	"$SAN/root/.ssh" \
 	"$SAN/home/b/.cache/debian-aarch64" \
@@ -78,8 +78,8 @@ printf 'state\n' >"$SAN/var/lib/NetworkManager/NetworkManager.state"
 printf 'key\n' >"$SAN/etc/ssh/ssh_host_ed25519_key"
 printf 'machine\n' >"$SAN/etc/machine-id"
 printf 'machine\n' >"$SAN/var/lib/dbus/machine-id"
-printf 'installed\n' >"$SAN/etc/lazyos/installation"
-printf 'state\n' >"$SAN/var/lib/lazyos/greeter/state.toml"
+printf 'installed\n' >"$SAN/etc/hayato/installation"
+printf 'state\n' >"$SAN/var/lib/hayato/greeter/state.toml"
 printf 'key\n' >"$SAN/root/.ssh/id_ed25519"
 printf 'cache\n' >"$SAN/home/b/.cache/debian-aarch64/profile"
 printf 'db\n' >"$SAN/home/b/.local/share/opencode/opencode.db"
@@ -101,8 +101,8 @@ assert_false "SSH host keys are gone" test -e "$SAN/etc/ssh/ssh_host_ed25519_key
 assert_true "machine-id exists and is empty" test -f "$SAN/etc/machine-id"
 assert_eq "" "$(cat "$SAN/etc/machine-id")" "machine-id is emptied, not deleted"
 assert_false "the dbus machine-id is gone" test -e "$SAN/var/lib/dbus/machine-id"
-assert_false "the installation marker is gone" test -e "$SAN/etc/lazyos/installation"
-assert_false "the greeter state is gone" test -e "$SAN/var/lib/lazyos/greeter/state.toml"
+assert_false "the installation marker is gone" test -e "$SAN/etc/hayato/installation"
+assert_false "the greeter state is gone" test -e "$SAN/var/lib/hayato/greeter/state.toml"
 assert_false "root's SSH directory is gone" test -e "$SAN/root/.ssh"
 assert_false "the build cache is gone" test -e "$SAN/home/b/.cache/debian-aarch64"
 assert_false "the OpenCode database is gone" test -e "$SAN/home/b/.local/share/opencode"
@@ -114,7 +114,7 @@ assert_false "the copied repository is gone" test -e "$SAN/tmp/repo"
 
 # --- dist_assert_clean accepts a clean tree and rejects each leak ---------
 CLEAN="$TMP/clean"
-mkdir -p "$CLEAN/etc/ssh" "$CLEAN/etc/lazyos" "$CLEAN/root" "$CLEAN/home/b"
+mkdir -p "$CLEAN/etc/ssh" "$CLEAN/etc/hayato" "$CLEAN/root" "$CLEAN/home/b"
 : >"$CLEAN/etc/machine-id"
 
 expect_status 0 "a clean tree passes dist_assert_clean" \
@@ -138,7 +138,7 @@ check_rejected "a DHCP lease is rejected" "printf x >'__TREE__/var.lease'"
 check_rejected "an SSH host key is rejected" "printf x >'__TREE__/etc/ssh/ssh_host_rsa_key'"
 check_rejected "a non-empty machine-id is rejected" "printf x >'__TREE__/etc/machine-id'"
 check_rejected "a dbus machine-id is rejected" "mkdir -p '__TREE__/var/lib/dbus'; printf x >'__TREE__/var/lib/dbus/machine-id'"
-check_rejected "an installation marker is rejected" "printf x >'__TREE__/etc/lazyos/installation'"
+check_rejected "an installation marker is rejected" "printf x >'__TREE__/etc/hayato/installation'"
 check_rejected "a non-empty root SSH directory is rejected" "mkdir -p '__TREE__/root/.ssh'; printf x >'__TREE__/root/.ssh/id'"
 check_rejected "a non-empty OpenCode database is rejected" "mkdir -p '__TREE__/home/b/.local/share/opencode'; printf x >'__TREE__/home/b/.local/share/opencode/db'"
 

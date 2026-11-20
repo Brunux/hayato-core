@@ -16,8 +16,8 @@ BLOCK="${1:-/dev/mmcblk1}"
 
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" KERNEL_CMDLINE_OVERRIDE="${KERNEL_CMDLINE_OVERRIDE:-}" \
-		LAZYOS_ROOT_DIR="${REPO_DIR:-}" LAZYOS_DEVICES_DIR="${DEVICES_REPO:-}" \
-		LAZYOS_DESKTOP_DIR="${DESKTOP_REPO:-}" \
+		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
+		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "${1:-}"
 fi
 

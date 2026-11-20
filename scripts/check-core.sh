@@ -1,5 +1,5 @@
 #!/bin/bash
-# LazyOS hardware- and UI-agnostic core OS checks (/usr/libexec/lazyos/check/10-core.sh).
+# Hayato hardware- and UI-agnostic core OS checks (/usr/libexec/hayato/check/10-core.sh).
 # Can run standalone (./scripts/check-core.sh) or sourced by check-system.sh.
 
 _STANDALONE_CORE=0
@@ -51,14 +51,14 @@ else
 	fail "no /lib/modules/$(uname -r): the running kernel does not match the installed modules"
 fi
 
-if [ -f /etc/lazyos/deviceinfo ]; then
+if [ -f /etc/hayato/deviceinfo ]; then
 	# shellcheck disable=SC1091
-	_boot_type="$(sed -n 's/^deviceinfo_boot_type=["'\'']*\([^"'\'' ]*\).*/\1/p' /etc/lazyos/deviceinfo | head -n1)"
+	_boot_type="$(sed -n 's/^deviceinfo_boot_type=["'\'']*\([^"'\'' ]*\).*/\1/p' /etc/hayato/deviceinfo | head -n1)"
 	case "${_boot_type:-}" in
 		uefi)
-			[ -f /boot/efi/loader/entries/lazyos.conf ] &&
-				ok "UEFI systemd-boot entry present (/boot/efi/loader/entries/lazyos.conf)" ||
-				fail "/boot/efi/loader/entries/lazyos.conf is missing" ;;
+			[ -f /boot/efi/loader/entries/hayato.conf ] &&
+				ok "UEFI systemd-boot entry present (/boot/efi/loader/entries/hayato.conf)" ||
+				fail "/boot/efi/loader/entries/hayato.conf is missing" ;;
 		extlinux)
 			[ -f /boot/extlinux/extlinux.conf ] &&
 				ok "extlinux config present (/boot/extlinux/extlinux.conf)" ||
@@ -422,7 +422,7 @@ if [ -r "$_cfg" ]; then
 	[ -n "$(grep -x 'CONFIG_HZ=1000' "$_cfg" 2>/dev/null)" ] || _missing_cfg="$_missing_cfg HZ=1000"
 	[ -n "$(grep -x 'CONFIG_LRU_GEN=y' "$_cfg" 2>/dev/null)" ] || _missing_cfg="$_missing_cfg LRU_GEN"
 	[ -n "$(grep -x 'CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y' "$_cfg" 2>/dev/null)" ] || _missing_cfg="$_missing_cfg governor=schedutil"
-	[ -z "$_missing_cfg" ] && ok "kernel config carries LazyOS tuning ($(basename "$_cfg"))" ||
+	[ -z "$_missing_cfg" ] && ok "kernel config carries Hayato tuning ($(basename "$_cfg"))" ||
 		info "stock kernel config ($(basename "$_cfg")) omits custom tuning:$_missing_cfg"
 else
 	skip "no /boot/config-* to check the kernel options against"

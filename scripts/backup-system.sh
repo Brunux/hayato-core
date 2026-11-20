@@ -159,7 +159,7 @@ cat >"$DEST/README.md" <<EOF
 # Backup of \`$HOST\`
 
 Taken from the running system on $(date -Is) with \`scripts/backup-system.sh\` from
-<https://github.com/Brunux/LazyOS>.
+<https://github.com/Brunux/Hayato>.
 
 | file | what it is |
 |---|---|
