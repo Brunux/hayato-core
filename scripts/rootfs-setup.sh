@@ -146,7 +146,7 @@ EOF
 # The virtual terminals' banner: agetty expands \n (node name) and \l (line).
 # greetd owns vt 7, so the gettys on vt 1-6 are the ones that show this.
 cat >/etc/issue <<EOF
-Hayato $VERSION · lazy by design
+Hayato $VERSION · light. fast. fun.
 \n · \l
 EOF
 
