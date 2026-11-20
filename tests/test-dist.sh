@@ -166,7 +166,8 @@ mkdir -p "$ARTIFACT_CLEAN"
 printf 'ordinary image bytes\n' >"$ARTIFACT_CLEAN/blob"
 
 expect_status 0 "an artifact without the profile passes the byte check" \
-	bash -c "ROOTFS='$PROFILE_ROOTFS' WORK_DIR='$WORK_DIR' . '$ROOT/scripts/lib-dist.sh'; dist_assert_no_profile_bytes '$ARTIFACT_CLEAN'"
+	env ROOTFS="$PROFILE_ROOTFS" WORK_DIR="$WORK_DIR" \
+	bash -c ". '$ROOT/scripts/lib-dist.sh'; dist_assert_no_profile_bytes '$ARTIFACT_CLEAN'"
 
 ARTIFACT_LEAK="$TMP/artifact-leak"
 mkdir -p "$ARTIFACT_LEAK"
@@ -181,6 +182,7 @@ assert_contains "$out" "Wi-Fi credentials" "the refusal explains the leaked byte
 EMPTY_ROOTFS="$TMP/empty-rootfs"
 mkdir -p "$EMPTY_ROOTFS/etc/NetworkManager/system-connections"
 expect_status 0 "no profiles means nothing to look for" \
-	bash -c "ROOTFS='$EMPTY_ROOTFS' WORK_DIR='$WORK_DIR' . '$ROOT/scripts/lib-dist.sh'; dist_assert_no_profile_bytes '$ARTIFACT_LEAK'"
+	env ROOTFS="$EMPTY_ROOTFS" WORK_DIR="$WORK_DIR" \
+	bash -c ". '$ROOT/scripts/lib-dist.sh'; dist_assert_no_profile_bytes '$ARTIFACT_LEAK'"
 
 finish
