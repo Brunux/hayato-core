@@ -11,7 +11,7 @@ export DEBIAN_FRONTEND=noninteractive
 : "${DEBIAN_COMPONENTS:=main contrib non-free non-free-firmware}"
 : "${VERSION:=0.0.0}"
 : "${UI:=sway}"
-: "${REPO_NAME:=debian-aarch64}"
+: "${REPO_NAME:=Hayato}"
 PKGDIR="/tmp/packages"
 
 log() { printf '\n\033[1;34m[rootfs] ==> %s\033[0m\n' "$*"; }

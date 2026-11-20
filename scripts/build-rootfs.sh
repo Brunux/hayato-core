@@ -195,7 +195,7 @@ chroot "$ROOTFS" env \
 	UI="$UI" \
 	BOOT_TYPE="$BOOT_TYPE" \
 	VERSION="$VERSION" \
-	REPO_NAME="$(basename "$REPO_DIR")" \
+	REPO_NAME="Hayato" \
 	/bin/bash /root/rootfs-setup.sh
 
 if [ -d "$WIFI_DIR" ]; then
