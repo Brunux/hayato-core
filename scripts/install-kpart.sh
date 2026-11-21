@@ -132,7 +132,7 @@ else
 			fi
 			;;
 	esac
-	"$CORE_DIR/scripts/make-kpart.sh" / "$IMG" "$_cmdline"
+	"${CORE_SCRIPTS_DIR:-$CORE_DIR/scripts}/make-kpart.sh" / "$IMG" "$_cmdline"
 fi
 
 kpart_fits "$IMG" "$PART"
