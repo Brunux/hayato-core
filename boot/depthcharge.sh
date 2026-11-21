@@ -2,7 +2,7 @@
 # ChromeOS Depthcharge boot backend (cgpt + depthchargectl signed FIT kpart).
 # Implements the uniform hayato-core boot_* interface over scripts/lib-cgpt.sh.
 
-. "$CORE_DIR/scripts/lib-cgpt.sh"
+. "${CORE_SCRIPTS_DIR:-$CORE_DIR/scripts}/lib-cgpt.sh"
 
 boot_release() {
 	disk_release "$1"
@@ -36,18 +36,18 @@ boot_install() {
 	if [ -b "$out" ]; then
 		disk_layout_parts "$out"
 		local kpart_tmp="$WORK_DIR/${DEVICE}.depthcharge.kpart"
-		"$CORE_DIR/scripts/make-kpart.sh" "$rootfs" "$kpart_tmp" "$cmdline_extra"
+		"${CORE_SCRIPTS_DIR:-$CORE_DIR/scripts}/make-kpart.sh" "$rootfs" "$kpart_tmp" "$cmdline_extra"
 		kpart_fits "$kpart_tmp" "$KPART_PART"
 		log "Writing signed kpart to $KPART_PART"
 		dd if="$kpart_tmp" of="$KPART_PART" bs=1M conv=fsync status=progress
 		sync
 		kpart_verify "$KPART_PART"
 	else
-		"$CORE_DIR/scripts/make-kpart.sh" "$rootfs" "$out" "$cmdline_extra"
+		"${CORE_SCRIPTS_DIR:-$CORE_DIR/scripts}/make-kpart.sh" "$rootfs" "$out" "$cmdline_extra"
 	fi
 }
 
 # Rewrites the running system's ChromeOS kernel partition (kern_guid from /proc/cmdline).
 boot_update_running() {
-	exec "$CORE_DIR/scripts/install-kpart.sh" "$@"
+	exec "${CORE_SCRIPTS_DIR:-$CORE_DIR/scripts}/install-kpart.sh" "$@"
 }

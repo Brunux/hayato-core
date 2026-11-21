@@ -11,7 +11,19 @@ warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[fail]\033[0m %s\n' "$*" >&2; exit 1; }
 need_root() { [ "$(id -u)" -eq 0 ] || die "this command must run as root (use sudo)"; }
 
-CORE_DIR="${CORE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${CORE_DIR:-}" ]; then
+	if [ -d "$_LIB_DIR/boot" ]; then
+		CORE_DIR="$_LIB_DIR"
+	else
+		CORE_DIR="$(cd "$_LIB_DIR/.." && pwd)"
+	fi
+fi
+if [ -d "$CORE_DIR/scripts" ]; then
+	CORE_SCRIPTS_DIR="$CORE_DIR/scripts"
+else
+	CORE_SCRIPTS_DIR="$CORE_DIR"
+fi
 _PARENT_DIR="$(cd "$CORE_DIR/.." && pwd)"
 
 if [ -n "${HAYATO_ROOT_DIR:-}" ]; then
@@ -353,7 +365,7 @@ sync_rootfs_to_mount() {
 	rsync -aHAX --delete --exclude=/efi "$src/boot"/ "$dst/boot"/
 }
 
-export CORE_DIR REPO_DIR DEVICES_REPO DESKTOP_REPO
+export CORE_DIR CORE_SCRIPTS_DIR REPO_DIR DEVICES_REPO DESKTOP_REPO
 export ARCH DEVICE_ARCH BUILD_ROOT WORK_DIR SRC_DIR ROOTFS
 export DEVICE DEVICE_DIR DEVICES_DIR KERNELS_DIR KERNEL_DIR
 export KERNEL_FLAVOR KERNEL_SOURCE_TYPE KERNEL_PACKAGE KERNEL_VERSION KERNEL_RELEASE KERNEL_STAGE KERNEL_ARCH KPART
