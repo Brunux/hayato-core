@@ -1,5 +1,5 @@
 Types: deb
-URIs: https://dl.cloudsmith.io/public/brunux/hayato/deb/debian
+URIs: https://dl.cloudsmith.io/public/hayato/hayato/deb/debian
 Suites: forky
 Components: main
 Architectures: arm64

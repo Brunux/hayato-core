@@ -13,7 +13,7 @@ set -euo pipefail
 SOURCES_FILE="${HAYATO_APT_SOURCES_FILE:-/etc/apt/sources.list.d/hayato.sources}"
 KEYRING_FILE="${HAYATO_APT_KEYRING_FILE:-/usr/share/keyrings/hayato-archive-keyring.gpg}"
 ASC_FILE="${HAYATO_APT_ASC_FILE:-/usr/share/keyrings/hayato-archive-keyring.asc}"
-DEFAULT_CLOUDSMITH_REPO="${CLOUDSMITH_REPO:-brunux/hayato}"
+DEFAULT_CLOUDSMITH_REPO="${CLOUDSMITH_REPO:-hayato/hayato}"
 DEFAULT_GITHUB_REPO="${HAYATO_GITHUB_REPO:-Brunux/Hayato}"
 DEFAULT_SUITE="${DEBIAN_SUITE:-forky}"
 

@@ -17,7 +17,7 @@ cp "$ROOT/apt/hayato-archive-keyring.gpg" "$KEY_FILE"
 out="$(HAYATO_APT_SOURCES_FILE="$SRC_FILE" HAYATO_APT_KEYRING_FILE="$KEY_FILE" \
 	bash "$ROOT/scripts/hayato-apt.sh" status)"
 assert_contains "$out" "enabled=no" "default Cloudsmith source starts disabled until enabled"
-assert_contains "$out" "uri=https://dl.cloudsmith.io/public/brunux/hayato/deb/debian" "default URI points to Cloudsmith"
+assert_contains "$out" "uri=https://dl.cloudsmith.io/public/hayato/hayato/deb/debian" "default URI points to Cloudsmith"
 assert_contains "$out" "suite=forky" "default suite is forky"
 assert_contains "$out" "keyring=present" "committed GPG keyring is detected"
 
