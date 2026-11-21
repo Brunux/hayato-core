@@ -465,6 +465,11 @@ if [ -d /tmp/ui-files ]; then
 		gtk-update-icon-cache -q -t -f /usr/share/icons/Hayato 2>/dev/null ||
 			warn "gtk-update-icon-cache failed: the first launcher scan will walk the theme"
 	fi
+	if command -v plymouth-set-default-theme >/dev/null 2>&1 &&
+		[ -f /usr/share/plymouth/themes/hayato/hayato.plymouth ]; then
+		plymouth-set-default-theme hayato >/dev/null 2>&1 ||
+			warn "plymouth-set-default-theme hayato failed"
+	fi
 	# A script without the execute bit is the quietest bug in this tree: it is
 	# in the image, `-r` passes, and the key that runs it does nothing at all
 	# (sway's `exec` gets EACCES and the message goes to the journal, which
