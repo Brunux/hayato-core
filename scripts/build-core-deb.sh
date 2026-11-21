@@ -27,6 +27,7 @@ install -d -m 0755 \
 	"$PKG/etc/kernel/postinst.d" \
 	"$PKG/etc/initramfs/post-update.d" \
 	"$PKG/etc/systemd/system/sshd-keygen.service.d" \
+	"$PKG/etc/systemd/system/systemd-user-sessions.service.d" \
 	"$PKG/etc/sysctl.d" \
 	"$PKG/etc/tmpfiles.d" \
 	"$PKG/etc/udev/rules.d"
@@ -91,6 +92,14 @@ cat >"$PKG/etc/systemd/system/sshd-keygen.service.d/90-run-when-keys-are-missing
 ConditionFirstBoot=
 ConditionPathExists=!/etc/ssh/ssh_host_ed25519_key
 EOF
+
+cat >"$PKG/etc/systemd/system/systemd-user-sessions.service.d/90-no-network-wait.conf" <<'EOF'
+[Unit]
+After=
+After=remote-fs.target nss-user-lookup.target
+EOF
+
+ln -sfn /dev/null "$PKG/etc/systemd/system/systemd-binfmt.service"
 
 cat >"$PKG/etc/kernel/postinst.d/zz-hayato-boot" <<'EOF'
 #!/bin/sh

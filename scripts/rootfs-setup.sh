@@ -347,6 +347,17 @@ ConditionFirstBoot=
 ConditionPathExists=!/etc/ssh/ssh_host_ed25519_key
 EOF
 
+# Boot speed: do not block sysinit.target on eager binfmt_misc mounting (~0.75s)
+# and do not block greetd/systemd-user-sessions.service on NetworkManager (~0.4s)
+# so the login greeter appears immediately while Wi-Fi and SSH start in parallel.
+systemctl mask systemd-binfmt.service 2>/dev/null || ln -sfn /dev/null /etc/systemd/system/systemd-binfmt.service
+install -d /etc/systemd/system/systemd-user-sessions.service.d
+cat >/etc/systemd/system/systemd-user-sessions.service.d/90-no-network-wait.conf <<'EOF'
+[Unit]
+After=
+After=remote-fs.target nss-user-lookup.target
+EOF
+
 if [ -f "$PKGDIR/$UI.list" ] && [ "$UI" = "sway" ]; then
 	log "Configuring greetd"
 	# Debian's greetd package creates the '_greetd' system user while the

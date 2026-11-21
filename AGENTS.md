@@ -67,6 +67,11 @@ refuse mounted targets via `findmnt -rn -S`, require stopping `udisks2`, and nev
   in `hayato-desktop`); `scripts/install-emmc.sh` is kept intact in `/usr/libexec/hayato/` as a
   manual/debug fallback for Hayato, while `scripts/install-boot.sh` (`boot_update_running`) handles
   post-upgrade boot sync across `depthcharge`, `uefi`, and `extlinux`.
+- Boot-speed defaults: ChromeOS `depthcharge` boards (`google-asurada`, `google-kukui`) use fast
+  `lz4` FIT kernel compression (`deviceinfo_depthcharge_compression="lz4"` with `lz4` in board
+  `packages.list`); `rootfs-setup.sh` and `hayato-core` mask `systemd-binfmt.service` and drop
+  `network.target` from `systemd-user-sessions.service`'s `After=` list so `greetd` starts in
+  parallel with `NetworkManager` and `ssh`.
 
 ## Release Sanitization (`lib-dist.sh` & `make-release.sh`)
 - `make-release.sh` must strip host secrets, Wi-Fi PSKs, SSH host keys, `machine-id`, and build caches
