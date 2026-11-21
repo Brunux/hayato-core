@@ -106,21 +106,24 @@ fi
 # Stage FHS runtime helpers (/usr/libexec/hayato & /etc/hayato) so the running
 # device manages boot, eMMC installation, backup, and system verification without
 # needing a checkout in ~/Dev/.
-rm -rf "$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc"
-mkdir -p "$ROOTFS/tmp/hayato-runtime/boot" "$ROOTFS/tmp/hayato-runtime/check" "$ROOTFS/tmp/hayato-etc"
+rm -rf "$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc" "$ROOTFS/tmp/hayato-apt"
+mkdir -p "$ROOTFS/tmp/hayato-runtime/boot" "$ROOTFS/tmp/hayato-runtime/check" "$ROOTFS/tmp/hayato-etc" "$ROOTFS/tmp/hayato-apt"
 cp "$CORE_DIR"/boot/*.sh "$ROOTFS/tmp/hayato-runtime/boot/"
 cp "$CORE_DIR/VERSION" "$ROOTFS/tmp/hayato-runtime/VERSION"
 for _rt in lib.sh lib-cgpt.sh lib-dist.sh install-emmc.sh install-boot.sh install-kpart.sh \
-	make-kpart.sh backup-system.sh restore-system.sh wifi.sh check-system.sh check-core.sh; do
+	make-kpart.sh backup-system.sh restore-system.sh wifi.sh check-system.sh check-core.sh hayato-apt.sh; do
 	[ -f "$CORE_DIR/scripts/$_rt" ] && cp "$CORE_DIR/scripts/$_rt" "$ROOTFS/tmp/hayato-runtime/"
 done
+if [ -d "$CORE_DIR/apt" ]; then
+	cp -a "$CORE_DIR/apt/." "$ROOTFS/tmp/hayato-apt/"
+fi
 cp "$CORE_DIR/scripts/check-core.sh" "$ROOTFS/tmp/hayato-runtime/check/10-core.sh"
 [ -f "$DEVICE_DIR/check-device.sh" ] && cp "$DEVICE_DIR/check-device.sh" "$ROOTFS/tmp/hayato-runtime/check/20-device.sh"
 [ -f "$DESKTOP_REPO/scripts/check-desktop.sh" ] && cp "$DESKTOP_REPO/scripts/check-desktop.sh" "$ROOTFS/tmp/hayato-runtime/check/30-desktop.sh"
 printf '%s\n' "$DEVICE" >"$ROOTFS/tmp/hayato-etc/device"
 cp "$DEVICE_DIR/deviceinfo" "$ROOTFS/tmp/hayato-etc/deviceinfo"
 [ -f "$DEVICE_DIR/kernel-cmdline.conf" ] && cp "$DEVICE_DIR/kernel-cmdline.conf" "$ROOTFS/tmp/hayato-etc/kernel-cmdline.conf"
-chown -R root:root "$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc"
+chown -R root:root "$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc" "$ROOTFS/tmp/hayato-apt"
 # The one agent the image ships (see the Agents section of scripts/lib.sh): its
 # tarball is fetched here, verified against the committed pin, and handed to
 # rootfs-setup.sh, which extracts it into the user's ~/.opencode/bin. Cached in
@@ -209,7 +212,7 @@ if [ -d "$WIFI_DIR" ]; then
 fi
 
 rm -rf "$ROOTFS/tmp/packages" "$ROOTFS/tmp/device-files" "$ROOTFS/tmp/ui-files" \
-	"$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc" "$ROOTFS/tmp/repo" \
+	"$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc" "$ROOTFS/tmp/hayato-apt" "$ROOTFS/tmp/repo" \
 	"$ROOTFS/tmp/opencode.tgz" "$ROOTFS/tmp/editxr.tgz" "$ROOTFS/root/rootfs-setup.sh"
 
 # Whatever is built here ships as a disk (write-sd.sh, make-image.sh) or is

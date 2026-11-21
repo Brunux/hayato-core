@@ -66,6 +66,28 @@ if [ -f /etc/hayato/deviceinfo ]; then
 	esac
 fi
 
+if [ -x /etc/kernel/postinst.d/zz-hayato-boot ] && [ -x /etc/initramfs/post-update.d/zz-hayato-boot ]; then
+	ok "kernel and initramfs post-update boot hooks installed (zz-hayato-boot)"
+else
+	fail "missing /etc/kernel/postinst.d/zz-hayato-boot or /etc/initramfs/post-update.d/zz-hayato-boot"
+fi
+
+if [ -s /usr/share/keyrings/hayato-archive-keyring.gpg ] &&
+	[ -f /etc/apt/sources.list.d/hayato.sources ] &&
+	[ -x /usr/libexec/hayato/hayato-apt.sh ]; then
+	ok "Hayato APT keyring, Cloudsmith source template, and hayato-apt helper installed"
+else
+	fail "Hayato APT distribution files missing (/usr/share/keyrings/hayato-archive-keyring.gpg, /etc/apt/sources.list.d/hayato.sources, or /usr/libexec/hayato/hayato-apt.sh)"
+fi
+
+if have dpkg-query; then
+	if [ "$(dpkg-query -W -f='${Status}' hayato-core 2>/dev/null || true)" = "install ok installed" ]; then
+		ok "hayato-core is registered as a Debian package ($(dpkg-query -W -f='${Version}' hayato-core 2>/dev/null))"
+	else
+		warn "hayato-core is not yet registered in dpkg (run core/scripts/build-core-deb.sh && core/scripts/install-core.sh /)"
+	fi
+fi
+
 # ---------------------------------------------------------------------------
 section "Root filesystem"
 # ---------------------------------------------------------------------------

@@ -32,7 +32,9 @@ if [ "${SKIP_DESKTOP_BUILD:-no}" != "yes" ]; then
 	# Rust workspace.
 	"$DESKTOP_REPO/scripts/build-hayato.sh"
 fi
+"$CORE_DIR/scripts/build-core-deb.sh"
 "$CORE_DIR/scripts/build-rootfs.sh"
+"$CORE_DIR/scripts/install-core.sh"
 "$CORE_DIR/scripts/install-kernel.sh"
 "$CORE_DIR/scripts/install-swayfx.sh"
 "$CORE_DIR/scripts/install-workstyle.sh"

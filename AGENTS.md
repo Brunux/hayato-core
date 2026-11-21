@@ -17,10 +17,19 @@ Wayland desktop, Rust `hayato` binaries, Sway configs, and themes belong in `hay
   or `$REPO_DIR/desktop`.
 - On a booted device (`/usr/libexec/hayato/`), `lib.sh` falls back cleanly to `/etc/hayato/deviceinfo`
   and `/etc/hayato/kernel-cmdline.conf` so runtime tools work without source checkouts.
-- Packaged Debian kernels (`kernels/*/package` -> `KERNEL_SOURCE_TYPE="debian-pkg"`) resolve
-  `KERNEL_RELEASE` from `<rootfs>/lib/modules/*` via `resolve_kernel_release` and sync DTBs from
+- Packaged Debian kernels (`kernels/*/package` -> `KERNEL_SOURCE_TYPE="debian-pkg"`) and packaged
+  Hayato kernels (`linux-image-hayato-<flavor>`) resolve `KERNEL_RELEASE` and sync DTBs from
   `/usr/lib/linux-image-<ver>/` to `/boot/dtbs/` (`install-kernel.sh` at build time and
-  `/etc/kernel/postinst.d/zz-hayato-boot` after `apt upgrade` on non-`depthcharge` systems).
+  `/etc/kernel/postinst.d/zz-hayato-boot` + `/etc/initramfs/post-update.d/zz-hayato-boot` after
+  `apt upgrade` across all boot backends including `depthcharge`, which deduplicates consecutive
+  postinst/initramfs triggers via `/run/hayato-boot-synced-<ver>` and forwards
+  `TARGET_KERNEL_RELEASE` to `install-kpart.sh`).
+- In-place `.deb` distribution (`scripts/build-core-deb.sh`, `scripts/install-core.sh`,
+  `scripts/hayato-apt.sh`, and `apt/`): `hayato-core` packages `/usr/libexec/hayato/`, tuning drop-ins,
+  `zz-hayato-boot` hooks, `/usr/share/keyrings/hayato-archive-keyring.gpg`, and
+  `/etc/apt/sources.list.d/hayato.sources` (Cloudsmith APT repository + GitHub Releases
+  `hayato-apt upgrade-from-github` fallback). `make-release.sh` stages all target `.deb` packages
+  alongside `<device>.img.xz` into `$OUTDIR` and records them in `SHA256SUMS`.
 
 ## Pluggable Boot Backend Contract (`boot/<type>.sh`)
 Selected via `deviceinfo_boot_type` (`depthcharge` default, `uefi`, or `extlinux`):

@@ -1,0 +1,7 @@
+Types: deb
+URIs: https://dl.cloudsmith.io/public/brunux/hayato/deb/debian
+Suites: forky
+Components: main
+Architectures: arm64
+Signed-By: /usr/share/keyrings/hayato-archive-keyring.gpg
+Enabled: no

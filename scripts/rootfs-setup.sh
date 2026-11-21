@@ -266,17 +266,29 @@ if [ -d /tmp/hayato-runtime ]; then
 	chmod 755 /usr/libexec/hayato/boot/*.sh 2>/dev/null || true
 	chmod 755 /usr/libexec/hayato/check/*.sh 2>/dev/null || true
 	ln -sfn /usr/libexec/hayato/check-system.sh /usr/local/sbin/check-system.sh
+	if [ -x /usr/libexec/hayato/hayato-apt.sh ]; then
+		ln -sfn /usr/libexec/hayato/hayato-apt.sh /usr/local/sbin/hayato-apt
+	fi
 fi
 
-_boot_type="${BOOT_TYPE:-}"
-if [ -z "$_boot_type" ] && [ -r /etc/hayato/deviceinfo ]; then
-	_boot_type="$(sed -n 's/^deviceinfo_boot_type="\([^"]*\)"$/\1/p' /etc/hayato/deviceinfo | head -n1)"
+if [ -d /tmp/hayato-apt ]; then
+	install -d -m 755 /usr/share/keyrings /etc/apt/keyrings /etc/apt/sources.list.d
+	if [ -f /tmp/hayato-apt/hayato-archive-keyring.gpg ]; then
+		install -m 644 /tmp/hayato-apt/hayato-archive-keyring.gpg /usr/share/keyrings/hayato-archive-keyring.gpg
+		install -m 644 /tmp/hayato-apt/hayato-archive-keyring.gpg /etc/apt/keyrings/hayato-archive-keyring.gpg
+	fi
+	if [ -f /tmp/hayato-apt/hayato-archive-keyring.asc ]; then
+		install -m 644 /tmp/hayato-apt/hayato-archive-keyring.asc /usr/share/keyrings/hayato-archive-keyring.asc
+	fi
+	if [ -f /tmp/hayato-apt/hayato.sources ]; then
+		install -m 644 /tmp/hayato-apt/hayato.sources /etc/apt/sources.list.d/hayato.sources
+	fi
 fi
-if [ "${_boot_type:-depthcharge}" != "depthcharge" ]; then
-	install -d /etc/kernel/postinst.d
-	cat >/etc/kernel/postinst.d/zz-hayato-boot <<'EOF'
+
+install -d /etc/kernel/postinst.d /etc/initramfs/post-update.d
+cat >/etc/kernel/postinst.d/zz-hayato-boot <<'EOF'
 #!/bin/sh
-# Sync Debian-packaged DTBs and refresh systemd-boot / extlinux after apt kernel upgrades.
+# Sync packaged DTBs and refresh the active boot partition / entry (depthcharge, uefi, extlinux).
 set -eu
 ver="${1:-}"
 if [ -n "$ver" ] && [ -d "/usr/lib/linux-image-$ver" ]; then
@@ -289,12 +301,25 @@ _pid1_id="$(stat -Lc %d:%i /proc/1/root 2>/dev/null || true)"
 if [ -n "$_root_id" ] && [ -n "$_pid1_id" ] && [ "$_root_id" != "$_pid1_id" ]; then
 	exit 0
 fi
+if [ -n "$ver" ] && { [ ! -f "/boot/vmlinuz-$ver" ] || [ ! -f "/boot/initrd.img-$ver" ]; }; then
+	exit 0
+fi
+if [ -n "$ver" ] && [ -d /run ]; then
+	_sig="$(stat -c '%Y:%s' "/boot/vmlinuz-$ver" "/boot/initrd.img-$ver" 2>/dev/null | tr '\n' ' ' || true)"
+	_stamp="/run/hayato-boot-synced-$ver"
+	if [ -n "$_sig" ] && [ -f "$_stamp" ] && [ "$(cat "$_stamp" 2>/dev/null || true)" = "$_sig" ]; then
+		exit 0
+	fi
+fi
 if [ -x /usr/libexec/hayato/install-boot.sh ] && findmnt -n -o UUID / >/dev/null 2>&1; then
-	CONFIRM=yes /usr/libexec/hayato/install-boot.sh
+	CONFIRM=yes TARGET_KERNEL_RELEASE="$ver" /usr/libexec/hayato/install-boot.sh
+	if [ -n "$ver" ] && [ -d /run ] && [ -n "${_sig:-}" ]; then
+		printf '%s' "$_sig" >"/run/hayato-boot-synced-$ver" 2>/dev/null || true
+	fi
 fi
 EOF
-	chmod 0755 /etc/kernel/postinst.d/zz-hayato-boot
-fi
+chmod 0755 /etc/kernel/postinst.d/zz-hayato-boot
+install -m 0755 /etc/kernel/postinst.d/zz-hayato-boot /etc/initramfs/post-update.d/zz-hayato-boot
 
 log "Enabling services"
 systemctl enable NetworkManager ssh 2>/dev/null || true

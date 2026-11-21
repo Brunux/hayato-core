@@ -22,6 +22,7 @@ export IMAGE_SIZE_MIB
 # every resolved input is forwarded explicitly.
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" IMAGE_SIZE_MIB="$IMAGE_SIZE_MIB" \
+		BUILD_ROOT="$BUILD_ROOT" WORK_DIR="$WORK_DIR" SRC_DIR="$SRC_DIR" \
 		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
 		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "$OUTDIR"
@@ -32,16 +33,38 @@ IMG="$OUTDIR/$DEVICE.img"
 mkdir -p "$OUTDIR"
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"
 
-log "1/2 Image"
+log "1/3 Image"
 "$CORE_DIR/scripts/make-image.sh" "$IMG" "$IMAGE_SIZE_MIB"
 
-log "2/2 Compressing image"
+log "2/3 Compressing image"
 xz -T0 -6 -f "$IMG"
+
+log "3/3 Staging .deb packages"
+for _deb in \
+	"$COMPOSITOR_STAGE"/*.deb \
+	"$WORKSTYLE_STAGE"/*.deb \
+	"$HAYATO_STAGE"/*.deb \
+	"$KERNEL_STAGE"/*.deb; do
+	[ -f "$_deb" ] || continue
+	_base="$(basename "$_deb")"
+	case "$_base" in
+		hayato-device-*)
+			case "$_base" in
+				"hayato-device-${DEVICE}_"*) cp -f "$_deb" "$OUTDIR/" ;;
+			esac
+			;;
+		*)
+			cp -f "$_deb" "$OUTDIR/"
+			;;
+	esac
+done
 
 log "Checksums"
 (
 	cd "$OUTDIR"
-	sha256sum "$(basename "$IMG").xz" >SHA256SUMS
+	rm -f SHA256SUMS
+	sha256sum "$(basename "$IMG").xz" *.deb 2>/dev/null >SHA256SUMS ||
+		sha256sum "$(basename "$IMG").xz" >SHA256SUMS
 	cat SHA256SUMS
 ) | sed 's/^/  /'
 

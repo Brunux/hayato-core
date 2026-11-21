@@ -34,6 +34,7 @@ if [ "$(id -u)" -ne 0 ]; then
 	# sudo -n starts from a clean environment, so CONFIRM=yes has to be forwarded
 	# explicitly or the guard below can never pass through the re-exec.
 	exec sudo -n DEVICE="$DEVICE" CONFIRM="${CONFIRM:-}" RESUME="${RESUME:-}" \
+		TARGET_KERNEL_RELEASE="${TARGET_KERNEL_RELEASE:-}" \
 		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
 		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "$@"
@@ -76,9 +77,20 @@ if [ -n "${1:-}" ]; then
 	[ -f "$IMG" ] || die "not a file: $IMG"
 	log "Using the prebuilt kpart $IMG"
 else
-	# The running kernel, not the repository's: that is the one /lib/modules and
-	# /boot describe right now.
-	KERNEL_RELEASE="$(uname -r)"
+	# Pick the target kernel release when triggered by a package upgrade hook
+	# (TARGET_KERNEL_RELEASE), or the newest complete kernel in /boot, falling
+	# back to the currently running kernel (uname -r).
+	if [ -n "${TARGET_KERNEL_RELEASE:-}" ]; then
+		KERNEL_RELEASE="$TARGET_KERNEL_RELEASE"
+	else
+		_newest_vmlinuz="$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -n1 || true)"
+		_newest_rel="${_newest_vmlinuz#/boot/vmlinuz-}"
+		if [ -n "$_newest_rel" ] && [ -d "/lib/modules/$_newest_rel" ] && [ -f "/boot/initrd.img-$_newest_rel" ]; then
+			KERNEL_RELEASE="$_newest_rel"
+		else
+			KERNEL_RELEASE="$(uname -r)"
+		fi
+	fi
 	export KERNEL_RELEASE
 	[ -d "/lib/modules/$KERNEL_RELEASE" ] || die "no /lib/modules/$KERNEL_RELEASE"
 	IMG="$WORK_DIR/kpart-running-$DEVICE"

@@ -6,16 +6,29 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
 [ -n "${1:-}" ] && ROOTFS="$1"
+ROOTFS="$(readlink -f "$ROOTFS" 2>/dev/null || printf '%s' "$ROOTFS")"
 
 if [ "$(id -u)" -ne 0 ]; then
 	exec sudo -n DEVICE="$DEVICE" KERNEL_STAGE="$KERNEL_STAGE" \
 		KERNEL_SOURCE_TYPE="${KERNEL_SOURCE_TYPE:-source}" KERNEL_RELEASE="${KERNEL_RELEASE:-}" \
+		KERNEL_FLAVOR="${KERNEL_FLAVOR:-}" \
 		HAYATO_ROOT_DIR="${REPO_DIR:-}" HAYATO_DEVICES_DIR="${DEVICES_REPO:-}" \
 		HAYATO_DESKTOP_DIR="${DESKTOP_REPO:-}" \
 		"$(readlink -f "$0")" "${1:-}"
 fi
 
 [ -d "$ROOTFS" ] || die "rootfs not found: $ROOTFS (run build-rootfs.sh first)"
+
+# Force the device's early modules into the initramfs before kernel package
+# postinst or update-initramfs runs.
+if [ -n "$INITFS_MODULES" ]; then
+	log "Adding initramfs modules: $INITFS_MODULES"
+	mkdir -p "$ROOTFS/etc/initramfs-tools"
+	touch "$ROOTFS/etc/initramfs-tools/modules"
+	for m in $INITFS_MODULES; do
+		grep -qxF "$m" "$ROOTFS/etc/initramfs-tools/modules" || echo "$m" >>"$ROOTFS/etc/initramfs-tools/modules"
+	done
+fi
 
 if [ "${KERNEL_SOURCE_TYPE:-source}" = "debian-pkg" ]; then
 	resolve_kernel_release "$ROOTFS"
@@ -29,6 +42,34 @@ if [ "${KERNEL_SOURCE_TYPE:-source}" = "debian-pkg" ]; then
 		rm -rf "$ROOTFS/boot/dtbs"
 		mkdir -p "$ROOTFS/boot/dtbs"
 		cp -a "$ROOTFS/usr/lib/linux-image-$KERNEL_RELEASE/." "$ROOTFS/boot/dtbs/"
+	fi
+elif ls "$KERNEL_STAGE"/linux-image-hayato-"${KERNEL_FLAVOR}"_*.deb >/dev/null 2>&1 &&
+	[ -f "$ROOTFS/var/lib/dpkg/status" ]; then
+	if [ "$ROOTFS" = "/" ]; then
+		log "Installing packaged Hayato kernel ($KERNEL_FLAVOR $KERNEL_RELEASE) on the running system"
+		dpkg -i "$KERNEL_STAGE"/linux-image-hayato-"${KERNEL_FLAVOR}"_*.deb
+	else
+		log "Installing packaged Hayato kernel ($KERNEL_FLAVOR $KERNEL_RELEASE) into $ROOTFS"
+		STAGE_IN_CHROOT="/var/tmp/kernel-deb"
+		rm -rf "$ROOTFS$STAGE_IN_CHROOT"
+		mkdir -p "$ROOTFS$STAGE_IN_CHROOT"
+		cp "$KERNEL_STAGE"/linux-image-hayato-"${KERNEL_FLAVOR}"_*.deb "$ROOTFS$STAGE_IN_CHROOT/"
+
+		mount --bind /dev "$ROOTFS/dev"
+		mount -t proc proc "$ROOTFS/proc"
+		mount -t sysfs sys "$ROOTFS/sys"
+		cleanup_deb() {
+			rm -rf "$ROOTFS$STAGE_IN_CHROOT"
+			for m in dev proc sys; do
+				umount -lf "$ROOTFS/$m" 2>/dev/null || true
+			done
+		}
+		trap cleanup_deb EXIT
+
+		chroot "$ROOTFS" /bin/bash -c "dpkg -i $STAGE_IN_CHROOT/*.deb"
+		log "Kernel package installed into $ROOTFS"
+		ls -la "$ROOTFS/boot"
+		exit 0
 	fi
 else
 	[ -d "$KERNEL_STAGE/lib/modules/$KERNEL_RELEASE" ] || die "staged kernel not found: $KERNEL_STAGE (run build-kernel.sh first)"
@@ -49,35 +90,27 @@ else
 	cp -a "$KERNEL_STAGE/boot/dtbs/." "$ROOTFS/boot/dtbs/"
 fi
 
-# Force the device's early modules into the initramfs.
-if [ -n "$INITFS_MODULES" ]; then
-	log "Adding initramfs modules: $INITFS_MODULES"
-	mkdir -p "$ROOTFS/etc/initramfs-tools"
-	touch "$ROOTFS/etc/initramfs-tools/modules"
-	for m in $INITFS_MODULES; do
-		grep -qxF "$m" "$ROOTFS/etc/initramfs-tools/modules" || echo "$m" >>"$ROOTFS/etc/initramfs-tools/modules"
-	done
-fi
-
 if [ -f "$ROOTFS/etc/debian-aarch64-revision" ]; then
 	sed -i "s|^kernel .*|kernel $KERNEL_RELEASE|" "$ROOTFS/etc/debian-aarch64-revision"
 fi
 
-log "depmod + initramfs"
-mount --bind /dev "$ROOTFS/dev"
-mount -t proc proc "$ROOTFS/proc"
-mount -t sysfs sys "$ROOTFS/sys"
-cleanup() {
-	for m in dev proc sys; do
-		umount -lf "$ROOTFS/$m" 2>/dev/null || true
-	done
-}
-trap cleanup EXIT
-chroot "$ROOTFS" depmod -a "$KERNEL_RELEASE"
-if [ -f "$ROOTFS/boot/initrd.img-$KERNEL_RELEASE" ]; then
-	chroot "$ROOTFS" update-initramfs -u -k "$KERNEL_RELEASE"
-else
-	chroot "$ROOTFS" update-initramfs -c -k "$KERNEL_RELEASE"
+if [ "$ROOTFS" != "/" ]; then
+	log "depmod + initramfs"
+	mount --bind /dev "$ROOTFS/dev"
+	mount -t proc proc "$ROOTFS/proc"
+	mount -t sysfs sys "$ROOTFS/sys"
+	cleanup() {
+		for m in dev proc sys; do
+			umount -lf "$ROOTFS/$m" 2>/dev/null || true
+		done
+	}
+	trap cleanup EXIT
+	chroot "$ROOTFS" depmod -a "$KERNEL_RELEASE"
+	if [ -f "$ROOTFS/boot/initrd.img-$KERNEL_RELEASE" ]; then
+		chroot "$ROOTFS" update-initramfs -u -k "$KERNEL_RELEASE"
+	else
+		chroot "$ROOTFS" update-initramfs -c -k "$KERNEL_RELEASE"
+	fi
 fi
 
 log "Kernel installed into $ROOTFS"
