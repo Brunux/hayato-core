@@ -19,6 +19,7 @@ rm -rf "$PKG"
 install -d -m 0755 \
 	"$PKG/usr/libexec/hayato/boot" \
 	"$PKG/usr/libexec/hayato/check" \
+	"$PKG/usr/sbin" \
 	"$PKG/usr/local/sbin" \
 	"$PKG/usr/share/keyrings" \
 	"$PKG/etc/apt/keyrings" \
@@ -42,6 +43,8 @@ for _rt in lib.sh lib-cgpt.sh lib-dist.sh install-emmc.sh install-boot.sh instal
 	[ -f "$CORE_DIR/scripts/$_rt" ] && install -m 0755 "$CORE_DIR/scripts/$_rt" "$PKG/usr/libexec/hayato/$_rt"
 done
 install -m 0755 "$CORE_DIR/scripts/check-core.sh" "$PKG/usr/libexec/hayato/check/10-core.sh"
+ln -sfn /usr/libexec/hayato/check-system.sh "$PKG/usr/sbin/check-system.sh"
+ln -sfn /usr/libexec/hayato/hayato-apt.sh "$PKG/usr/sbin/hayato-apt"
 ln -sfn /usr/libexec/hayato/check-system.sh "$PKG/usr/local/sbin/check-system.sh"
 ln -sfn /usr/libexec/hayato/hayato-apt.sh "$PKG/usr/local/sbin/hayato-apt"
 

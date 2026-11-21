@@ -35,6 +35,8 @@ if command -v dpkg-deb >/dev/null 2>&1; then
 		"hayato-core .deb ships kernel postinst hook"
 	assert_contains "$(dpkg-deb -c "$cdeb")" "./etc/initramfs/post-update.d/zz-hayato-boot" \
 		"hayato-core .deb ships initramfs post-update hook"
+	assert_contains "$(dpkg-deb -c "$cdeb")" "./usr/sbin/hayato-apt" \
+		"hayato-core .deb ships hayato-apt in /usr/sbin (sudo PATH)"
 	assert_contains "$(dpkg-deb -c "$cdeb")" "./usr/share/keyrings/hayato-archive-keyring.gpg" \
 		"hayato-core .deb ships the APT archive keyring"
 

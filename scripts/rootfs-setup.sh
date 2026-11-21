@@ -266,8 +266,10 @@ if [ -d /tmp/hayato-runtime ]; then
 	chmod 755 /usr/libexec/hayato/*.sh 2>/dev/null || true
 	chmod 755 /usr/libexec/hayato/boot/*.sh 2>/dev/null || true
 	chmod 755 /usr/libexec/hayato/check/*.sh 2>/dev/null || true
+	ln -sfn /usr/libexec/hayato/check-system.sh /usr/sbin/check-system.sh
 	ln -sfn /usr/libexec/hayato/check-system.sh /usr/local/sbin/check-system.sh
 	if [ -x /usr/libexec/hayato/hayato-apt.sh ]; then
+		ln -sfn /usr/libexec/hayato/hayato-apt.sh /usr/sbin/hayato-apt
 		ln -sfn /usr/libexec/hayato/hayato-apt.sh /usr/local/sbin/hayato-apt
 	fi
 fi
