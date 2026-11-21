@@ -51,7 +51,24 @@ DIST_EXCLUDES='
 /var/lib/dbus/machine-id
 /etc/hayato/installation
 /var/lib/hayato/greeter/state.toml
+/var/lib/hayato/greeter/state.json
+/var/lib/bluetooth/
+/var/lib/systemd/random-seed
 /root/.ssh/
+/root/.bash_history
+/home/*/.ssh/
+/home/*/.bash_history
+/home/*/.zsh_history
+/home/*/.python_history
+/home/*/.lesshst
+/home/*/.viminfo
+/home/*/.netrc
+/home/*/.git-credentials
+/home/*/.codex/
+/home/*/.claude/
+/home/*/.claude.json
+/home/*/.gemini/
+/home/*/.config/gh/
 /home/*/.cache/debian-aarch64/
 /home/*/.local/share/opencode/
 /home/*/.local/state/opencode/
@@ -98,9 +115,16 @@ dist_sanitize() {
 	: >"$_d/etc/machine-id"
 	rm -f "$_d/var/lib/dbus/machine-id"
 	rm -f "$_d/etc/hayato/installation"
-	rm -f "$_d/var/lib/hayato/greeter/state.toml"
+	rm -f "$_d/var/lib/hayato/greeter/state.toml" "$_d/var/lib/hayato/greeter/state.json"
+	rm -rf "${_d:?}"/var/lib/bluetooth/*
+	rm -f "$_d/var/lib/systemd/random-seed"
 
-	rm -rf "$_d/root/.ssh"
+	rm -rf "$_d/root/.ssh" "${_d:?}"/home/*/.ssh
+	rm -f "$_d/root/.bash_history" "${_d:?}"/home/*/.bash_history "${_d:?}"/home/*/.zsh_history \
+		"${_d:?}"/home/*/.python_history "${_d:?}"/home/*/.lesshst "${_d:?}"/home/*/.viminfo \
+		"${_d:?}"/home/*/.netrc "${_d:?}"/home/*/.git-credentials "${_d:?}"/home/*/.claude.json
+	rm -rf "${_d:?}"/home/*/.codex "${_d:?}"/home/*/.claude "${_d:?}"/home/*/.gemini \
+		"${_d:?}"/home/*/.config/gh
 	rm -rf "${_d:?}"/var/log/journal/*
 	rm -f "$_d/var/log/bootstrap.log"
 	rm -rf "$_d/tmp/repo"
@@ -158,12 +182,13 @@ dist_assert_no_profile_bytes() {
 		! ls -A "$ROOTFS/etc/NetworkManager/system-connections" >/dev/null 2>&1; then
 		die "dist_assert_no_profile_bytes: cannot read $ROOTFS/etc/NetworkManager/system-connections (run as root), so the check would be empty"
 	fi
-	_pat="$WORK_DIR/dist-profile-patterns.txt"
-	: >"$_pat"
+	_pat="$(umask 077 && mktemp "${TMPDIR:-/tmp}/hayato-dist-patterns.XXXXXX")"
 	for _p in "$ROOTFS"/etc/NetworkManager/system-connections/*.nmconnection; do
 		[ -f "$_p" ] || continue
 		basename "$_p" .nmconnection >>"$_pat"
+		sed -n 's/^ssid=//p' "$_p" >>"$_pat"
 		sed -n 's/^psk=//p' "$_p" >>"$_pat"
+		sed -n 's/^password=//p' "$_p" >>"$_pat"
 	done
 	sed -i '/^$/d' "$_pat"
 

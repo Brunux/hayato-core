@@ -106,6 +106,9 @@ cat >"$PKG/etc/kernel/postinst.d/zz-hayato-boot" <<'EOF'
 # Sync packaged DTBs and refresh the active boot partition / entry (depthcharge, uefi, extlinux).
 set -eu
 ver="${1:-}"
+case "$ver" in
+	*/* | *..*) exit 1 ;;
+esac
 if [ -n "$ver" ] && [ -d "/usr/lib/linux-image-$ver" ]; then
 	rm -rf /boot/dtbs
 	mkdir -p /boot/dtbs
@@ -135,6 +138,7 @@ fi
 EOF
 chmod 0755 "$PKG/etc/kernel/postinst.d/zz-hayato-boot"
 install -m 0755 "$PKG/etc/kernel/postinst.d/zz-hayato-boot" "$PKG/etc/initramfs/post-update.d/zz-hayato-boot"
+chmod -R go-w "$PKG"
 
 INSTALLED_SIZE="$(du -sk --exclude=DEBIAN "$PKG" | cut -f1)"
 mkdir -p "$PKG/DEBIAN" "$OUTDIR"

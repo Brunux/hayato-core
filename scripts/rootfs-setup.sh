@@ -161,6 +161,7 @@ if ! id "$USERNAME" >/dev/null 2>&1; then
 	useradd -m -s /bin/bash -G sudo,video,audio,input,render,netdev,plugdev "$USERNAME"
 	echo "$USERNAME:$USERPASS" | chpasswd
 fi
+chmod 0700 "/home/$USERNAME" 2>/dev/null || true
 echo "%sudo ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/99-$USERNAME
 chmod 440 /etc/sudoers.d/99-$USERNAME
 
@@ -291,6 +292,9 @@ cat >/etc/kernel/postinst.d/zz-hayato-boot <<'EOF'
 # Sync packaged DTBs and refresh the active boot partition / entry (depthcharge, uefi, extlinux).
 set -eu
 ver="${1:-}"
+case "$ver" in
+	*/* | *..*) exit 1 ;;
+esac
 if [ -n "$ver" ] && [ -d "/usr/lib/linux-image-$ver" ]; then
 	rm -rf /boot/dtbs
 	mkdir -p /boot/dtbs
@@ -322,7 +326,10 @@ chmod 0755 /etc/kernel/postinst.d/zz-hayato-boot
 install -m 0755 /etc/kernel/postinst.d/zz-hayato-boot /etc/initramfs/post-update.d/zz-hayato-boot
 
 log "Enabling services"
-systemctl enable NetworkManager ssh 2>/dev/null || true
+# ssh.service is deliberately left disabled on fresh images so default credentials
+# are never exposed over the network out-of-the-box; enable via Settings -> SSH.
+systemctl enable NetworkManager 2>/dev/null || true
+systemctl disable ssh 2>/dev/null || true
 # systemd-oomd (PSI-based; Debian's defaults configure it) and the zram swap the
 # generator creates. systemd-zram-generator needs no enabling - it is a systemd
 # generator, and dev-zram0.swap exists from the moment the unit files are

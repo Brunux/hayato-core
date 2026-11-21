@@ -77,6 +77,9 @@ if [ -n "${DEVICES_DIR:-}" ] && [ -d "$DEVICES_DIR" ]; then
 		fi
 	fi
 	[ -n "${DEVICE:-}" ] || die "no device selected or found in $DEVICES_DIR"
+	case "$DEVICE" in
+		*[!a-zA-Z0-9_-]*) die "invalid device name '$DEVICE'" ;;
+	esac
 	DEVICE_DIR="$DEVICES_DIR/$DEVICE"
 	[ -d "$DEVICE_DIR" ] || die "unknown device '$DEVICE' (see $DEVICES_DIR)"
 	# shellcheck disable=SC1090
@@ -94,6 +97,10 @@ else
 fi
 
 BOOT_TYPE="${deviceinfo_boot_type:-depthcharge}"
+case "$BOOT_TYPE" in
+	depthcharge|uefi|extlinux) ;;
+	*) die "unsupported deviceinfo_boot_type='$BOOT_TYPE'" ;;
+esac
 BOOT_BACKEND="$CORE_DIR/boot/${BOOT_TYPE}.sh"
 [ -f "$BOOT_BACKEND" ] || die "unsupported deviceinfo_boot_type='$BOOT_TYPE' (missing $BOOT_BACKEND)"
 

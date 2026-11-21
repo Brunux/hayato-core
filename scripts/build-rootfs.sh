@@ -92,6 +92,7 @@ rm -rf "$ROOTFS/tmp/device-files"
 if [ -d "$DEVICE_DIR/files" ]; then
 	cp -a "$DEVICE_DIR/files" "$ROOTFS/tmp/device-files"
 	chown -R root:root "$ROOTFS/tmp/device-files"
+	chmod -R u=rwX,go=rX "$ROOTFS/tmp/device-files"
 fi
 
 # The UI file tree is staged aside; rootfs-setup.sh decides where it goes.
@@ -101,6 +102,7 @@ rm -rf "$ROOTFS/tmp/ui-files"
 if [ -d "$UI_DIR/files" ]; then
 	cp -a "$UI_DIR/files" "$ROOTFS/tmp/ui-files"
 	chown -R root:root "$ROOTFS/tmp/ui-files"
+	chmod -R u=rwX,go=rX "$ROOTFS/tmp/ui-files"
 fi
 
 # Stage FHS runtime helpers (/usr/libexec/hayato & /etc/hayato) so the running
@@ -134,7 +136,7 @@ if [ -f "$OPENCODE_DIR/SHA256SUMS" ]; then
 		curl -fL --retry 3 --progress-bar -o "$SRC_DIR/$OPENCODE_TARBALL.part" "$OPENCODE_URL"
 		mv "$SRC_DIR/$OPENCODE_TARBALL.part" "$SRC_DIR/$OPENCODE_TARBALL"
 	fi
-	( cd "$SRC_DIR" && sha256sum -c --ignore-missing "$OPENCODE_DIR/SHA256SUMS" ) ||
+	( cd "$SRC_DIR" && sha256sum -c "$OPENCODE_DIR/SHA256SUMS" ) ||
 		die "checksum mismatch for $OPENCODE_TARBALL (delete $SRC_DIR/$OPENCODE_TARBALL and retry)"
 	install -m 0644 "$SRC_DIR/$OPENCODE_TARBALL" "$ROOTFS/tmp/opencode.tgz"
 else
@@ -149,7 +151,7 @@ if [ -f "$EDITXR_DIR/SHA256SUMS" ]; then
 		curl -fL --retry 3 --progress-bar -o "$SRC_DIR/$EDITXR_TARBALL.part" "$EDITXR_URL"
 		mv "$SRC_DIR/$EDITXR_TARBALL.part" "$SRC_DIR/$EDITXR_TARBALL"
 	fi
-	( cd "$SRC_DIR" && sha256sum -c --ignore-missing "$EDITXR_DIR/SHA256SUMS" ) ||
+	( cd "$SRC_DIR" && sha256sum -c "$EDITXR_DIR/SHA256SUMS" ) ||
 		die "checksum mismatch for $EDITXR_TARBALL (delete $SRC_DIR/$EDITXR_TARBALL and retry)"
 	install -m 0644 "$SRC_DIR/$EDITXR_TARBALL" "$ROOTFS/tmp/editxr.tgz"
 	# MIT: the notice travels with the binary.

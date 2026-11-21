@@ -205,6 +205,7 @@ EOF
 			sign_homedir="$(mktemp -d /tmp/hayato-sign.XXXXXX)"
 			chmod 700 "$sign_homedir"
 			cleanup_gpg="yes"
+			trap '[ "$cleanup_gpg" = "yes" ] && rm -rf "$sign_homedir"' EXIT
 			printf '%s\n' "$HAYATO_APT_GPG_PRIVATE_KEY" |
 				GNUPGHOME="$sign_homedir" gpg --batch --yes --import >/dev/null 2>&1
 		elif [ -n "${GNUPGHOME:-}" ] && gpg --batch --list-secret-keys >/dev/null 2>&1; then
@@ -266,6 +267,10 @@ cmd_upgrade_from_github() {
 	fi
 
 	[ -d "$dir" ] || die "directory not found: $dir"
+	if [ -f "$dir/InRelease" ] && [ -f "$KEYRING_FILE" ] && command -v gpgv >/dev/null 2>&1; then
+		gpgv --keyring "$KEYRING_FILE" "$dir/InRelease" >/dev/null 2>&1 ||
+			die "GPG signature verification failed on $dir/InRelease"
+	fi
 	if [ -f "$dir/SHA256SUMS" ]; then
 		(
 			cd "$dir"
