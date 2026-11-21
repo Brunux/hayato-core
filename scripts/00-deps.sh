@@ -97,7 +97,7 @@ elif command -v apt-get >/dev/null 2>&1; then
 		cgpt vboot-kernel-utils depthcharge-tools \
 		imagemagick librsvg2-bin fontconfig \
 		e2fsprogs dosfstools parted gdisk \
-		util-linux
+		util-linux udev
 else
 	die "no supported package manager found (apk or apt-get)"
 fi

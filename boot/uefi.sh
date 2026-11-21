@@ -12,10 +12,37 @@ _uefi_wait_parts() {
 	command -v udevadm >/dev/null 2>&1 && udevadm settle || sleep 2
 }
 
+_uefi_ensure_part_node() {
+	local disk="$1" partn="$2" part="" sys="" devnum="" kname=""
+	part="$(lsblk -nro PATH,PARTN "$disk" 2>/dev/null | awk -v n="$partn" '$2 == n { print $1; exit }')"
+	if [ -n "$part" ] && [ -b "$part" ]; then
+		printf '%s\n' "$part"
+		return 0
+	fi
+	kname="$(basename "$disk")"
+	for sys in "/sys/block/${kname}/${kname}p${partn}" "/sys/block/${kname}/${kname}${partn}"; do
+		if [ -r "$sys/dev" ]; then
+			devnum="$(tr -d ' \t\r\n' <"$sys/dev")"
+			case "$disk" in
+			*[0-9]) part="${disk}p${partn}" ;;
+			*) part="${disk}${partn}" ;;
+			esac
+			if [ ! -b "$part" ] && [ -n "${devnum%:*}" ] && [ -n "${devnum#*:}" ]; then
+				mknod -m 0660 "$part" b "${devnum%:*}" "${devnum#*:}" 2>/dev/null || true
+			fi
+			if [ -b "$part" ]; then
+				printf '%s\n' "$part"
+				return 0
+			fi
+		fi
+	done
+	printf '%s\n' "$part"
+}
+
 _uefi_parts() {
 	local disk="$1"
-	EFI_PART="$(lsblk -nro PATH,PARTN "$disk" | awk '$2 == 1 { print $1; exit }')"
-	ROOT_PART="$(lsblk -nro PATH,PARTN "$disk" | awk '$2 == 2 { print $1; exit }')"
+	EFI_PART="$(_uefi_ensure_part_node "$disk" 1)"
+	ROOT_PART="$(_uefi_ensure_part_node "$disk" 2)"
 	[ -n "$EFI_PART" ] && [ -n "$ROOT_PART" ] || die "could not resolve UEFI partitions on $disk"
 	[ "$EFI_PART" != "$disk" ] && [ "$ROOT_PART" != "$disk" ] ||
 		die "refusing to operate on whole disk $disk"

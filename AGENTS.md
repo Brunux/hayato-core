@@ -49,8 +49,9 @@ partition (`extlinux`/`depthcharge`) never trigger `EXDEV`, and `boot_install` p
 `/boot/efi` afterward.
 
 Keep `lib-cgpt.sh` / ChromeOS GPT safeguards intact inside `boot/depthcharge.sh`: always resolve
-partitions by `PARTN` + `PARTLABEL`, refuse mounted targets via `findmnt -rn -S`, require stopping
-`udisks2`, and never use `cgpt create -z`.
+partitions by `PARTN` + `PARTLABEL` (falling back to `/sys/block/<disk>/<part>/dev` + `mknod` and
+`blkid -s PARTLABEL` when building loop images inside a container without a container-side `udevd`),
+refuse mounted targets via `findmnt -rn -S`, require stopping `udisks2`, and never use `cgpt create -z`.
 
 ## Rootfs Staging & FHS Runtime Rules
 - Never `rsync /` or chown existing `/` system trees recursively (preserves setuid bits and `root:root`

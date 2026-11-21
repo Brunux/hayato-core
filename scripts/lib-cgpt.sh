@@ -115,7 +115,37 @@ disk_layout_create() {
 	partprobe "$_disk" 2>/dev/null || true
 	partx -d "$_disk" 2>/dev/null || true
 	partx -a "$_disk" 2>/dev/null || blockdev --rereadpt "$_disk" 2>/dev/null || true
+	command -v mdev >/dev/null 2>&1 && mdev -s 2>/dev/null || true
 	command -v udevadm >/dev/null && udevadm settle || sleep 2
+}
+
+# Ensure a partition device node exists in /dev even inside a container where
+# udevd does not populate /dev/loop0pN automatically after partx -a.
+_ensure_part_node() {
+	local _disk="$1" _partn="$2" _part="" _sys="" _devnum="" _kname=""
+	_part="$(lsblk -nro PATH,PARTN "$_disk" 2>/dev/null | awk -v n="$_partn" '$2 == n { print $1; exit }')"
+	if [ -n "$_part" ] && [ -b "$_part" ]; then
+		printf '%s\n' "$_part"
+		return 0
+	fi
+	_kname="$(basename "$_disk")"
+	for _sys in "/sys/block/${_kname}/${_kname}p${_partn}" "/sys/block/${_kname}/${_kname}${_partn}"; do
+		if [ -r "$_sys/dev" ]; then
+			_devnum="$(tr -d ' \t\r\n' <"$_sys/dev")"
+			case "$_disk" in
+			*[0-9]) _part="${_disk}p${_partn}" ;;
+			*) _part="${_disk}${_partn}" ;;
+			esac
+			if [ ! -b "$_part" ] && [ -n "${_devnum%:*}" ] && [ -n "${_devnum#*:}" ]; then
+				mknod -m 0660 "$_part" b "${_devnum%:*}" "${_devnum#*:}" 2>/dev/null || true
+			fi
+			if [ -b "$_part" ]; then
+				printf '%s\n' "$_part"
+				return 0
+			fi
+		fi
+	done
+	printf '%s\n' "$_part"
 }
 
 # Resolve the partition devices into KPART_PART/BOOT_PART/ROOT_PART.
@@ -134,20 +164,27 @@ disk_layout_create() {
 # writes pmOS_kernel/pmOS_boot/pmOS_root and everything downstream expects those.
 disk_layout_parts() {
 	_disk="$1"
-	KPART_PART="$(lsblk -nro PATH,PARTN "$_disk" | awk '$2 == 1 { print $1; exit }')"
-	BOOT_PART="$(lsblk -nro PATH,PARTN "$_disk" | awk '$2 == 2 { print $1; exit }')"
-	ROOT_PART="$(lsblk -nro PATH,PARTN "$_disk" | awk '$2 == 3 { print $1; exit }')"
+	KPART_PART="$(_ensure_part_node "$_disk" 1)"
+	BOOT_PART="$(_ensure_part_node "$_disk" 2)"
+	ROOT_PART="$(_ensure_part_node "$_disk" 3)"
 	[ -n "$KPART_PART" ] && [ -n "$BOOT_PART" ] && [ -n "$ROOT_PART" ] ||
 		die "could not resolve partitions on $_disk"
 	for _p in "$KPART_PART" "$BOOT_PART" "$ROOT_PART"; do
 		[ "$_p" != "$_disk" ] ||
 			die "refusing to operate on the whole disk; partition resolution failed for $_disk"
 	done
-	[ "$(lsblk -nro PARTLABEL "$KPART_PART")" = "pmOS_kernel" ] ||
+	local _l1 _l2 _l3
+	_l1="$(lsblk -nro PARTLABEL "$KPART_PART" 2>/dev/null | head -n1)"
+	[ -n "$_l1" ] || _l1="$(blkid -s PARTLABEL -o value "$KPART_PART" 2>/dev/null || true)"
+	_l2="$(lsblk -nro PARTLABEL "$BOOT_PART" 2>/dev/null | head -n1)"
+	[ -n "$_l2" ] || _l2="$(blkid -s PARTLABEL -o value "$BOOT_PART" 2>/dev/null || true)"
+	_l3="$(lsblk -nro PARTLABEL "$ROOT_PART" 2>/dev/null | head -n1)"
+	[ -n "$_l3" ] || _l3="$(blkid -s PARTLABEL -o value "$ROOT_PART" 2>/dev/null || true)"
+	[ "$_l1" = "pmOS_kernel" ] ||
 		die "$KPART_PART is not the pmOS_kernel partition: partition resolution is wrong"
-	[ "$(lsblk -nro PARTLABEL "$BOOT_PART")" = "pmOS_boot" ] ||
+	[ "$_l2" = "pmOS_boot" ] ||
 		die "$BOOT_PART is not the pmOS_boot partition: partition resolution is wrong"
-	[ "$(lsblk -nro PARTLABEL "$ROOT_PART")" = "pmOS_root" ] ||
+	[ "$_l3" = "pmOS_root" ] ||
 		die "$ROOT_PART is not the pmOS_root partition: partition resolution is wrong"
 }
 
