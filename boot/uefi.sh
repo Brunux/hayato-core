@@ -123,8 +123,31 @@ boot_install() {
 	cmdline="$(_boot_build_cmdline "$rootfs" "$cmdline_extra")"
 
 	mkdir -p "$esp/hayato" "$esp/loader/entries" "$esp/EFI/BOOT"
+
+	# Preserve the previously active kernel entry as a rollback slot when upgrading.
+	local prev_rel=""
+	if [ -f "$esp/loader/entries/hayato.conf" ]; then
+		prev_rel="$(sed -n 's|^linux[[:space:]]\+/hayato/vmlinuz-||p' "$esp/loader/entries/hayato.conf" | head -n1)"
+		if [ -n "$prev_rel" ] && [ "$prev_rel" != "$rel" ] && [ -f "$esp/hayato/vmlinuz-$prev_rel" ]; then
+			sed "s|^title[[:space:]].*|title   Hayato (previous: $prev_rel)|" \
+				"$esp/loader/entries/hayato.conf" >"$esp/loader/entries/hayato-prev.conf"
+		fi
+	fi
+
 	cp "$vmlinuz" "$esp/hayato/vmlinuz-$rel"
 	cp "$initrd" "$esp/hayato/initrd.img-$rel"
+
+	# Prune stale kernel/initrd pairs from the 256 MiB ESP, keeping only current + previous.
+	local old_f old_rel
+	for old_f in "$esp/hayato"/vmlinuz-* "$esp/hayato"/initrd.img-*; do
+		[ -f "$old_f" ] || continue
+		old_rel="$(basename "$old_f")"
+		old_rel="${old_rel#vmlinuz-}"
+		old_rel="${old_rel#initrd.img-}"
+		if [ "$old_rel" != "$rel" ] && [ "$old_rel" != "$prev_rel" ]; then
+			rm -f "$old_f"
+		fi
+	done
 
 	if [ -n "${deviceinfo_dtb:-}" ] && [ -d "$rootfs/boot/dtbs" ]; then
 		local dtb_match
@@ -172,8 +195,15 @@ EOF
 }
 
 boot_update_running() {
-	local root_uuid extra=""
+	local root_uuid extra="" resume_arg=""
 	root_uuid="$(findmnt -n -o UUID / 2>/dev/null || true)"
 	[ -n "$root_uuid" ] && extra="root=UUID=$root_uuid rootwait rw"
-	boot_install / / "$extra"
+	if [ -r /proc/cmdline ]; then
+		for tok in $(cat /proc/cmdline); do
+			case "$tok" in
+				resume=*|resume_offset=*) resume_arg="$resume_arg $tok" ;;
+			esac
+		done
+	fi
+	boot_install / / "${extra}${resume_arg}"
 }

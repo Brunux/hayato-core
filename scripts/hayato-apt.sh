@@ -248,6 +248,16 @@ cmd_upgrade_from_github() {
 	if [ -f /etc/hayato/device ]; then
 		dev="$(tr -d ' \t\r\n' </etc/hayato/device)"
 	fi
+	local kfam=""
+	if [ -f /etc/hayato/deviceinfo ]; then
+		kfam="$(sed -n 's/^deviceinfo_kernel_family=["'\'']*\([^"'\'' ]*\).*/\1/p' /etc/hayato/deviceinfo | head -n1)"
+	fi
+	if [ -z "$kfam" ]; then
+		case "$dev" in
+			google-asurada|google-kukui) kfam="mediatek-mt81" ;;
+			*) kfam="debian-arm64" ;;
+		esac
+	fi
 
 	local tmp_dir=""
 	if [ -z "$dir" ]; then
@@ -289,6 +299,11 @@ cmd_upgrade_from_github() {
 					"hayato-device-${dev}_"*) debs+=("$f") ;;
 				esac
 				;;
+			linux-image-hayato-*)
+				case "$base" in
+					"linux-image-hayato-${kfam}_"*) debs+=("$f") ;;
+				esac
+				;;
 			*)
 				debs+=("$f")
 				;;
@@ -296,7 +311,7 @@ cmd_upgrade_from_github() {
 	done
 
 	[ "${#debs[@]}" -gt 0 ] || die "no matching .deb packages found in $dir"
-	log "Matched ${#debs[@]} package(s) for $dev:"
+	log "Matched ${#debs[@]} package(s) for $dev (kernel=$kfam):"
 	printf '  %s\n' "${debs[@]}"
 
 	if [ "$dry_run" = "yes" ]; then
@@ -306,7 +321,7 @@ cmd_upgrade_from_github() {
 
 	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 		-o Dpkg::Options::=--force-confdef \
-		-o Dpkg::Options::=--force-confnew \
+		-o Dpkg::Options::=--force-confold \
 		"${debs[@]}"
 	log "Upgrade from GitHub release packages complete"
 }
