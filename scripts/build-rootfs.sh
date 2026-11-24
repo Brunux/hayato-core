@@ -15,7 +15,7 @@ UI="${UI:-sway}"
 require_desktop
 [ -d "$UI_DIR" ] || die "unknown UI '$UI' (see $UIS_DIR)"
 TARGET_HOSTNAME="${TARGET_HOSTNAME:-hayato}"
-USERNAME="${USERNAME:-brunux}"
+USERNAME="${HAYATO_USER:-${USERNAME:-brunux}}"
 USERPASS="${USERPASS:-debian}"
 # The one source of the version the image reports: /etc/os-release's
 # PRETTY_NAME and VERSION_ID come from this file, so a build cannot say 0.2
@@ -124,6 +124,7 @@ cp "$CORE_DIR/scripts/check-core.sh" "$ROOTFS/tmp/hayato-runtime/check/10-core.s
 [ -f "$DESKTOP_REPO/scripts/check-desktop.sh" ] && cp "$DESKTOP_REPO/scripts/check-desktop.sh" "$ROOTFS/tmp/hayato-runtime/check/30-desktop.sh"
 printf '%s\n' "$DEVICE" >"$ROOTFS/tmp/hayato-etc/device"
 cp "$DEVICE_DIR/deviceinfo" "$ROOTFS/tmp/hayato-etc/deviceinfo"
+[ -f "$DEVICE_DIR/kernel" ] && cp "$DEVICE_DIR/kernel" "$ROOTFS/tmp/hayato-etc/kernel"
 [ -f "$DEVICE_DIR/kernel-cmdline.conf" ] && cp "$DEVICE_DIR/kernel-cmdline.conf" "$ROOTFS/tmp/hayato-etc/kernel-cmdline.conf"
 chown -R root:root "$ROOTFS/tmp/hayato-runtime" "$ROOTFS/tmp/hayato-etc" "$ROOTFS/tmp/hayato-apt"
 # The one agent the image ships (see the Agents section of scripts/lib.sh): its

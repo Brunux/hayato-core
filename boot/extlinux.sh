@@ -150,9 +150,16 @@ boot_install() {
 }
 
 boot_update_running() {
-	local root_uuid extra=""
+	local root_uuid extra="" tok
 	root_uuid="$(findmnt -n -o UUID / 2>/dev/null || true)"
 	[ -n "$root_uuid" ] && extra="root=UUID=$root_uuid rootwait rw"
+	if [ -r /proc/cmdline ]; then
+		for tok in $(cat /proc/cmdline); do
+			case "$tok" in
+				resume=*|resume_offset=*) extra="${extra:+$extra }$tok" ;;
+			esac
+		done
+	fi
 	boot_install / / "$extra"
 }
 

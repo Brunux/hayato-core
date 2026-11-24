@@ -249,8 +249,14 @@ cmd_upgrade_from_github() {
 		dev="$(tr -d ' \t\r\n' </etc/hayato/device)"
 	fi
 	local kfam=""
-	if [ -f /etc/hayato/deviceinfo ]; then
+	if [ -f /etc/hayato/kernel ]; then
+		kfam="$(tr -d ' \t\r\n' </etc/hayato/kernel)"
+	fi
+	if [ -z "$kfam" ] && [ -f /etc/hayato/deviceinfo ]; then
 		kfam="$(sed -n 's/^deviceinfo_kernel_family=["'\'']*\([^"'\'' ]*\).*/\1/p' /etc/hayato/deviceinfo | head -n1)"
+	fi
+	if [ -z "$kfam" ] && command -v dpkg-query >/dev/null 2>&1; then
+		kfam="$(dpkg-query -W -f='${Package}\n' 'linux-image-hayato-*' 2>/dev/null | sed -n 's/^linux-image-hayato-//p' | head -n1 || true)"
 	fi
 	if [ -z "$kfam" ]; then
 		case "$dev" in

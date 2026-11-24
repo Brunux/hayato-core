@@ -215,8 +215,14 @@ compression-algorithm = lz4
 swap-priority = 100
 EOF
 
-# Memory and writeback policy for MT8192 (4x A55 LITTLE + 4x A76 BIG, 4 GB RAM).
-# vm.page-cluster = 0 prevents 8-page readahead cache pollution on A55 (32 KB L1D).
+# Disable initramfs-tools RESUME=auto so an unplugged external SD/USB auxiliary
+# swap partition never stalls initramfs for 30s on boot (explicit kernel cmdline
+# resume= still works when hibernation is configured).
+install -d /etc/initramfs-tools/conf.d
+printf 'RESUME=none\n' >/etc/initramfs-tools/conf.d/resume
+
+# Memory and writeback policy for ARM64 flash + zram systems (4 GB RAM class).
+# vm.page-cluster = 0 prevents 8-page readahead cache pollution on zram swap.
 # vm.watermark_boost_factor = 0 stops kswapd churn during memory spikes.
 # vm.compaction_proactiveness = 0 disables background kcompactd CPU cycles.
 install -d /etc/sysctl.d
@@ -244,20 +250,12 @@ cat >/etc/udev/rules.d/60-io-scheduler.rules <<'EOF'
 ACTION=="add|change", KERNEL=="mmcblk[0-9]|nvme[0-9]*n[0-9]*|sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="kyber"
 EOF
 
-# Storage IRQ balancing: route MMC interrupts away from CPU0 (Cortex-A55) so the
-# ChromeOS EC (keyboard, trackpad, power button) and system timers on CPU0 are
-# never starved by storage I/O.
-#
-# The match is the *last* field, not a substring of the line: each controller
-# appears twice in /proc/interrupts - its data IRQ from the GIC and, first, a
-# `mt-eint ... cd` line for the card-detect GPIO. `/11f70000.mmc/ {print $1;
-# exit}` therefore selected the card-detect EINT, whose affinity is not
 install -d /usr/local/sbin
 
 if [ -d /tmp/hayato-etc ]; then
 	install -d -m 755 /etc/hayato
 	( cd /tmp/hayato-etc && cp -a . /etc/hayato/ )
-	chmod 644 /etc/hayato/device /etc/hayato/deviceinfo /etc/hayato/kernel-cmdline.conf 2>/dev/null || true
+	chmod 644 /etc/hayato/device /etc/hayato/deviceinfo /etc/hayato/kernel /etc/hayato/kernel-cmdline.conf 2>/dev/null || true
 fi
 
 if [ -d /tmp/hayato-runtime ]; then

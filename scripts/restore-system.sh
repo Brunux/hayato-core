@@ -47,7 +47,7 @@ set -euo pipefail
 . "$(dirname "$0")/lib-cgpt.sh"
 
 BACKUP="${1:-}"
-TARGET="${2:-${TARGET:-/dev/mmcblk0}}"
+TARGET="${2:-${TARGET:-${deviceinfo_install_target:-/dev/mmcblk0}}}"
 
 [ -n "$BACKUP" ] || die "usage: restore-system.sh <backup-directory> [target-disk]"
 [ -d "$BACKUP" ] || die "backup is not a directory: $BACKUP"
@@ -62,13 +62,19 @@ for _f in "$BACKUP"/*-kernel-partition.img; do
 	KPART_IMG="$_f"
 	break
 done
-[ -n "$KPART_IMG" ] ||
-	die "no *-kernel-partition.img in $BACKUP; is that a backup-system.sh backup?"
-HOST="${KPART_IMG##*/}"
-HOST="${HOST%-kernel-partition.img}"
+ROOTFS_TAR=""
+for _f in "$BACKUP"/*-rootfs.tar.gz; do
+	[ -f "$_f" ] || continue
+	ROOTFS_TAR="$_f"
+	break
+done
+[ -n "$ROOTFS_TAR" ] ||
+	die "no *-rootfs.tar.gz in $BACKUP; is that a backup-system.sh backup?"
+HOST="${ROOTFS_TAR##*/}"
+HOST="${HOST%-rootfs.tar.gz}"
 
-ROOTFS_TAR="$BACKUP/$HOST-rootfs.tar.gz"
 BOOT_TAR="$BACKUP/$HOST-boot.tar.gz"
+EFI_TAR="$BACKUP/$HOST-efi.tar.gz"
 GPT_PRIMARY="$BACKUP/$HOST-gpt-primary.img"
 GPT_BACKUP="$BACKUP/$HOST-gpt-backup.img"
 PARTITIONS_TXT="$BACKUP/$HOST-partitions.txt"
@@ -99,6 +105,7 @@ esac
 # are exactly the ones the restored system asks for.
 ROOT_UUID="${ROOT_UUID:-}"
 BOOT_UUID="${BOOT_UUID:-}"
+BOOT_MP="/boot"
 SWAP_UUID=""
 if [ -z "$ROOT_UUID" ] || [ -z "$BOOT_UUID" ]; then
 	log "Reading the filesystem UUIDs from the /etc/fstab inside $HOST-rootfs.tar.gz"
@@ -109,12 +116,15 @@ if [ -z "$ROOT_UUID" ] || [ -z "$BOOT_UUID" ]; then
 		die "cannot read ./etc/fstab out of $ROOTFS_TAR"
 	[ -n "$ROOT_UUID" ] ||
 		ROOT_UUID="$(awk '$2 == "/" && $1 ~ /^UUID=/ { sub(/^UUID=/, "", $1); print $1; exit }' "$_ftmp")"
+	if awk '$2 == "/boot/efi" { found=1 } END { exit !found }' "$_ftmp"; then
+		BOOT_MP="/boot/efi"
+	fi
 	[ -n "$BOOT_UUID" ] ||
-		BOOT_UUID="$(awk '$2 == "/boot" && $1 ~ /^UUID=/ { sub(/^UUID=/, "", $1); print $1; exit }' "$_ftmp")"
+		BOOT_UUID="$(awk '($2 == "/boot" || $2 == "/boot/efi") && $1 ~ /^UUID=/ { sub(/^UUID=/, "", $1); print $1; exit }' "$_ftmp")"
 	SWAP_UUID="$(awk '$3 == "swap" && $1 ~ /^UUID=/ { sub(/^UUID=/, "", $1); print $1; exit }' "$_ftmp")"
 fi
 [ -n "$ROOT_UUID" ] || die "the archived /etc/fstab has no UUID= entry for / (pass ROOT_UUID=...)"
-[ -n "$BOOT_UUID" ] || die "the archived /etc/fstab has no UUID= entry for /boot (pass BOOT_UUID=...)"
+[ -n "$BOOT_UUID" ] || die "the archived /etc/fstab has no UUID= entry for /boot or /boot/efi (pass BOOT_UUID=...)"
 
 # ---------------------------------------------------------------------------
 # The target
@@ -194,25 +204,40 @@ dd if="$TARGET" bs=512 skip=$((TARGET_TOTAL - 33)) count=33 2>/dev/null |
 	die "the backup GPT written to $TARGET does not match the backup"
 log "  GPT matches the backup, primary and backup copy"
 
-disk_layout_parts "$TARGET"
-log "  p1 $KPART_PART, p2 $BOOT_PART, p3 $ROOT_PART"
+if [ -n "$KPART_IMG" ]; then
+	disk_layout_parts "$TARGET"
+	log "  p1 $KPART_PART, p2 $BOOT_PART, p3 $ROOT_PART"
 
-# ---------------------------------------------------------------------------
-# 2. The kernel partition: the signed FIT depthcharge loads
-# ---------------------------------------------------------------------------
-log "Writing $KPART_IMG to $KPART_PART"
-kpart_fits "$KPART_IMG" "$KPART_PART"
-kpart_verify "$KPART_IMG"
-dd if="$KPART_IMG" of="$KPART_PART" bs=1M conv=fsync 2>/dev/null
-sync
+	# ---------------------------------------------------------------------------
+	# 2. The kernel partition: the signed FIT depthcharge loads
+	# ---------------------------------------------------------------------------
+	log "Writing $KPART_IMG to $KPART_PART"
+	kpart_fits "$KPART_IMG" "$KPART_PART"
+	kpart_verify "$KPART_IMG"
+	dd if="$KPART_IMG" of="$KPART_PART" bs=1M conv=fsync 2>/dev/null
+	sync
 
-# ---------------------------------------------------------------------------
-# 3. The filesystems, with the UUIDs the restored system expects
-# ---------------------------------------------------------------------------
-log "Creating $BOOT_PART ($BOOT_FS, label pmOS_boot, UUID $BOOT_UUID)"
-"mkfs.$BOOT_FS" -F -L pmOS_boot -U "$BOOT_UUID" "$BOOT_PART" >/dev/null
-log "Creating $ROOT_PART (ext4, label pmOS_root, UUID $ROOT_UUID)"
-mkfs.ext4 -F -L pmOS_root -U "$ROOT_UUID" "$ROOT_PART" >/dev/null
+	# ---------------------------------------------------------------------------
+	# 3. The filesystems, with the UUIDs the restored system expects
+	# ---------------------------------------------------------------------------
+	log "Creating $BOOT_PART ($BOOT_FS, label pmOS_boot, UUID $BOOT_UUID)"
+	"mkfs.$BOOT_FS" -F -L pmOS_boot -U "$BOOT_UUID" "$BOOT_PART" >/dev/null
+	log "Creating $ROOT_PART (ext4, label pmOS_root, UUID $ROOT_UUID)"
+	mkfs.ext4 -F -L pmOS_root -U "$ROOT_UUID" "$ROOT_PART" >/dev/null
+else
+	case "$TARGET" in
+		*[0-9]) BOOT_PART="${TARGET}p1"; ROOT_PART="${TARGET}p2" ;;
+		*)      BOOT_PART="${TARGET}1";  ROOT_PART="${TARGET}2"  ;;
+	esac
+	log "  p1 $BOOT_PART ($BOOT_MP), p2 $ROOT_PART (/)"
+	if [ "$BOOT_MP" = "/boot/efi" ]; then
+		_vfat_id="$(printf '%s' "$BOOT_UUID" | tr -d '-')"
+		mkfs.vfat -F 32 -n HAYATO_EFI ${_vfat_id:+-i "$_vfat_id"} "$BOOT_PART" >/dev/null
+	else
+		"mkfs.$BOOT_FS" -F -L hayato_boot -U "$BOOT_UUID" "$BOOT_PART" >/dev/null
+	fi
+	mkfs.ext4 -F -L hayato_root -U "$ROOT_UUID" "$ROOT_PART" >/dev/null
+fi
 
 for _p in "$BOOT_PART" "$ROOT_PART"; do
 	_re="$(blkid -s UUID -o value "$_p" 2>/dev/null || true)"
@@ -233,10 +258,22 @@ tar -xpf "$ROOTFS_TAR" -C "$MNT" --numeric-owner --acls --xattrs \
 sync
 
 mkdir -p "$MNT/boot"
-mount "$BOOT_PART" "$MNT/boot"
-log "Unpacking /boot"
-tar -xpf "$BOOT_TAR" -C "$MNT/boot" --numeric-owner --acls --xattrs \
-	--xattrs-include='*' --warning=no-unknown-keyword
+if [ "$BOOT_MP" = "/boot/efi" ]; then
+	log "Unpacking /boot"
+	tar -xpf "$BOOT_TAR" -C "$MNT/boot" --numeric-owner --acls --xattrs \
+		--xattrs-include='*' --warning=no-unknown-keyword
+	mkdir -p "$MNT/boot/efi"
+	mount "$BOOT_PART" "$MNT/boot/efi"
+	if [ -f "$EFI_TAR" ]; then
+		log "Unpacking /boot/efi"
+		tar -xpf "$EFI_TAR" -C "$MNT/boot/efi" --no-same-owner --warning=no-unknown-keyword
+	fi
+else
+	mount "$BOOT_PART" "$MNT/boot"
+	log "Unpacking /boot"
+	tar -xpf "$BOOT_TAR" -C "$MNT/boot" --numeric-owner --acls --xattrs \
+		--xattrs-include='*' --warning=no-unknown-keyword
+fi
 sync
 
 # ---------------------------------------------------------------------------
@@ -258,8 +295,10 @@ if [ -n "$SWAP_UUID" ]; then
 	fi
 fi
 
-log "Kernel partition after the restore"
-kpart_verify "$KPART_PART"
+if [ -n "$KPART_IMG" ]; then
+	log "Kernel partition after the restore"
+	kpart_verify "$KPART_PART"
+fi
 
 if [ "${DEEP:-}" = "yes" ]; then
 	log "Comparing the restored filesystems against the archives (tar -d)"
@@ -281,9 +320,14 @@ if [ "${DEEP:-}" = "yes" ]; then
 fi
 
 sync
+umount "$MNT/boot/efi" 2>/dev/null || true
 disk_layout_umount "$MNT"
 
 log "Restored '$HOST' onto $TARGET"
-cgpt show "$TARGET"
+if command -v cgpt >/dev/null 2>&1 && [ -n "$KPART_IMG" ]; then
+	cgpt show "$TARGET"
+else
+	lsblk "$TARGET"
+fi
 log "  firmware next steps: shut down, remove the microSD, power on"
 log "  the eMMC is what depthcharge boots by default; the card is picked from the firmware menu"

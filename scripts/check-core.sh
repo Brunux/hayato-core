@@ -190,6 +190,12 @@ else
 	warn "no swap active (systemd-zram-generator should provide /dev/zram0)"
 fi
 
+if grep -qs '^RESUME=none' /etc/initramfs-tools/conf.d/resume 2>/dev/null; then
+	ok "initramfs resume policy is RESUME=none (no 30s removable-swap boot stall)"
+else
+	warn "/etc/initramfs-tools/conf.d/resume is not RESUME=none"
+fi
+
 _boot_fstab="$(awk '$2 == "/boot" || $2 == "/boot/efi" { print $1 " " $2; exit }' /etc/fstab 2>/dev/null)"
 if [ -n "$_boot_fstab" ]; then
 	_boot_spec="${_boot_fstab%% *}"
@@ -264,10 +270,10 @@ section "Input"
 # ---------------------------------------------------------------------------
 if [ -r /proc/bus/input/devices ]; then
 	_kb="$(grep -cE '^H: Handlers=.*kbd' /proc/bus/input/devices || true)"
-	_pt="$(grep -cE '^B: ABS=[0-9a-f]*[1-9a-f]' /proc/bus/input/devices || true)"
+	_pt="$(grep -cE '^(B: (ABS|REL)=[0-9a-f]*[1-9a-f]|H: Handlers=.*mouse)' /proc/bus/input/devices || true)"
 	[ "${_kb:-0}" -ge 1 ] && ok "$_kb keyboard device(s)" || fail "no keyboard device"
 	[ "${_pt:-0}" -ge 1 ] && ok "$_pt pointer/touch device(s)" ||
-		fail "no pointer or touchscreen device (absolute-axis input)"
+		fail "no pointer or touchscreen device"
 else
 	skip "/proc/bus/input/devices not available"
 fi
@@ -334,10 +340,20 @@ if have bluetoothctl; then
 		skip "bluetoothctl needs root and sudo -n does not work: the controller is not read"
 	else
 		_show="$(asroot bluetoothctl show 2>/dev/null || true)"
-		info "controller $(printf '%s\n' "$_show" | grep -m1 'Controller' | cut -d' ' -f2-)"
 		case "$_show" in
-			*"Powered: yes"*) ok "controller powered" ;;
-			*) fail "controller is not powered (bluetoothd? firmware?)" ;;
+			*"No default controller available"*|"")
+				info "no Bluetooth controller present"
+				;;
+			*"Powered: yes"*)
+				info "controller $(printf '%s\n' "$_show" | grep -m1 'Controller' | cut -d' ' -f2-)"
+				ok "controller powered"
+				;;
+			*"Powered: no"*)
+				info "controller $(printf '%s\n' "$_show" | grep -m1 'Controller' | cut -d' ' -f2-) (powered off)"
+				;;
+			*)
+				warn "controller state unknown (bluetoothd? firmware?)"
+				;;
 		esac
 		have btmgmt && info "btmgmt: $(asroot btmgmt info 2>/dev/null | grep -m1 'current settings' | sed 's/^ *//')"
 	fi
@@ -348,8 +364,9 @@ fi
 # ---------------------------------------------------------------------------
 section "Suspend and power"
 # ---------------------------------------------------------------------------
-grep -qw mem /sys/power/state 2>/dev/null && ok "/sys/power/state advertises suspend ($(cat /sys/power/state))" ||
-	fail "no 'mem' in /sys/power/state: the kernel cannot suspend"
+grep -qE '(^|[[:space:]])(mem|freeze)($|[[:space:]])' /sys/power/state 2>/dev/null &&
+	ok "/sys/power/state advertises suspend ($(cat /sys/power/state))" ||
+	warn "no 'mem' or 'freeze' in /sys/power/state: the kernel cannot suspend"
 check_svc systemd-logind "systemd-logind is active"
 check_svc polkit "polkitd is active"
 if [ "$PRIV" != yes ]; then

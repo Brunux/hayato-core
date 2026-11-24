@@ -25,6 +25,7 @@ install -d -m 0755 \
 	"$PKG/etc/apt/keyrings" \
 	"$PKG/etc/apt/sources.list.d" \
 	"$PKG/etc/depthcharge-tools" \
+	"$PKG/etc/initramfs-tools/conf.d" \
 	"$PKG/etc/kernel/postinst.d" \
 	"$PKG/etc/initramfs/post-update.d" \
 	"$PKG/etc/systemd/system/sshd-keygen.service.d" \
@@ -70,6 +71,8 @@ zram-size = ram / 2
 compression-algorithm = lz4
 swap-priority = 100
 EOF
+
+printf 'RESUME=none\n' >"$PKG/etc/initramfs-tools/conf.d/resume"
 
 cat >"$PKG/etc/sysctl.d/90-zram-emmc.conf" <<'EOF'
 vm.swappiness = 100

@@ -120,6 +120,9 @@ archive() {
 # --one-file-system keeps /boot out of the second archive on installations where
 # it is a separate partition, which is the layout this repository installs.
 archive "$HOST-boot.tar.gz" /boot
+if mountpoint -q /boot/efi 2>/dev/null; then
+	archive "$HOST-efi.tar.gz" /boot/efi
+fi
 archive "$HOST-rootfs.tar.gz" /
 
 if [ -n "$KPART_PART" ]; then
@@ -222,7 +225,7 @@ log "Checksums"
 (
 	cd "$DEST"
 	for f in "$HOST-kernel-partition.img" "$HOST-gpt-primary.img" "$HOST-gpt-backup.img" \
-		"$HOST-gpt.bin" "$HOST-boot.tar.gz" "$HOST-rootfs.tar.gz"; do
+		"$HOST-gpt.bin" "$HOST-boot.tar.gz" "$HOST-efi.tar.gz" "$HOST-rootfs.tar.gz"; do
 		if [ -f "$f" ]; then
 			sha256sum "$f"
 		fi
