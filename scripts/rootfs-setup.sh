@@ -448,7 +448,7 @@ if [ -d /tmp/ui-files ]; then
 	fi
 	# Debian's fonts-nerd-symbols package ships /etc/fonts/conf.d/10-nerd-font-symbols.conf,
 	# which uses <alias binding="same"> for 50+ monospace families to Symbols Nerd Font.
-	# Because Symbols Nerd Font has zero Latin alphanumeric glyphs, web browsers (Firefox)
+	# Because Symbols Nerd Font has zero Latin alphanumeric glyphs, web browsers (Chromium)
 	# and editors resolve code blocks to a symbols-only font and fail to render text.
 	# Foot and kitty configure Symbols Nerd Font Mono explicitly in their own fallback
 	# chains, so disabling this fontconfig symlink restores proper monospace resolution.
